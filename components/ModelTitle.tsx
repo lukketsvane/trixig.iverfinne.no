@@ -45,9 +45,9 @@ export default function ModelTitle({
       <style jsx>{`
         .wrap {
           position: fixed;
-          bottom: calc(env(safe-area-inset-bottom, 0px) + var(--s-6));
-          left: calc(env(safe-area-inset-left, 0px) + var(--s-5));
-          right: var(--s-5);
+          bottom: calc(env(safe-area-inset-bottom, 0px) + var(--s-5));
+          left: calc(env(safe-area-inset-left, 0px) + var(--s-4));
+          right: var(--s-4);
           z-index: 2;
           pointer-events: none;
           transition: opacity var(--dur-slow) var(--ease-standard);
