@@ -1,0 +1,19 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# raw, uncompressed model sources (the served, compressed copies live in public/models)
+/raw/
+/*.glb
+
+# local tooling
+/.claude/
+
+# misc
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+*.log
