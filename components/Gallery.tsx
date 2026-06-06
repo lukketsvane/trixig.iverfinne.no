@@ -16,6 +16,7 @@ export default function Gallery({
   const drag = useRef<DragState>({ angle: 0, vel: 0 });
   const scroll = useRef<ScrollState>({ target: 0, current: 0 });
   const heroRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [inHero, setInHero] = useState(true); // overlays (logo/title) visible
   const [rendering, setRendering] = useState(true); // canvas at all on screen
@@ -41,6 +42,12 @@ export default function Gallery({
         const v = bottom > 0;
         return p === v ? p : v;
       });
+
+      const max = document.documentElement.scrollHeight - vh;
+      const prog = max > 0 ? window.scrollY / max : 0;
+      if (progressRef.current) {
+        progressRef.current.style.transform = `scaleX(${prog})`;
+      }
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -70,6 +77,8 @@ export default function Gallery({
 
   return (
     <main>
+      <div className="progress" ref={progressRef} aria-hidden />
+
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         className={`logo ${inHero ? "" : "faded"}`}
@@ -125,14 +134,27 @@ export default function Gallery({
       )}
 
       <style jsx>{`
+        .progress {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 3px;
+          z-index: 4;
+          background: var(--trixig-blue);
+          transform: scaleX(0);
+          transform-origin: left center;
+          will-change: transform;
+          pointer-events: none;
+        }
         .logo {
           position: fixed;
           top: calc(env(safe-area-inset-top, 0px) + 24px);
           left: calc(env(safe-area-inset-left, 0px) + 24px);
           z-index: 3;
-          width: 76px;
+          width: 60px;
           height: auto;
-          border-radius: 8px;
+          border-radius: 6px;
           user-select: none;
           pointer-events: none;
           transition: opacity var(--dur-slow) var(--ease-standard);
@@ -163,15 +185,16 @@ export default function Gallery({
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 14px;
-          padding: 14px 14px calc(env(safe-area-inset-bottom, 0px) + 48px);
+          gap: 12px;
+          padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + 56px);
         }
         .page {
           width: 100%;
-          max-width: 720px;
+          max-width: 680px;
           height: auto;
           display: block;
-          border-radius: 6px;
+          /* IKEA is flat: separate planes with a hairline, never a shadow */
+          border: 1px solid var(--rule);
         }
       `}</style>
     </main>
