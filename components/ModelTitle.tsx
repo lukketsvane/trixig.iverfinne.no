@@ -45,9 +45,9 @@ export default function ModelTitle({
       <style jsx>{`
         .wrap {
           position: fixed;
-          bottom: calc(env(safe-area-inset-bottom, 0px) + 32px);
-          left: calc(env(safe-area-inset-left, 0px) + 24px);
-          right: 24px;
+          bottom: calc(env(safe-area-inset-bottom, 0px) + var(--s-6));
+          left: calc(env(safe-area-inset-left, 0px) + var(--s-5));
+          right: var(--s-5);
           z-index: 2;
           pointer-events: none;
           transition: opacity var(--dur-slow) var(--ease-standard);
@@ -59,33 +59,27 @@ export default function ModelTitle({
           animation: enter var(--dur-slow) var(--ease-standard) both;
         }
         .eyebrow {
-          font-size: 12px;
-          font-weight: 700;
-          line-height: 1.2;
+          font: var(--type-label);
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: var(--ink-3);
-          margin: 0 0 6px;
+          color: var(--fg3);
+          margin: 0 0 var(--s-2);
         }
         .title {
-          font-size: clamp(28px, 9vw, 40px);
-          font-weight: 700;
-          line-height: 1.05;
+          font: var(--type-h1);
           letter-spacing: -0.01em;
           color: var(--ink);
           margin: 0;
         }
         .claim {
-          font-size: 16px;
-          font-weight: 700;
-          line-height: 1.3;
+          font: var(--type-body-bold);
           color: var(--ink);
-          margin: 8px 0 0;
+          margin: var(--s-2) 0 0;
         }
         @keyframes enter {
           from {
             opacity: 0;
-            transform: translateY(8px);
+            transform: translateY(var(--s-2));
           }
           to {
             opacity: 1;
