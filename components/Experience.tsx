@@ -7,6 +7,15 @@ import * as THREE from "three";
 
 const FOV = 35;
 
+// How large each model is framed. The drill redesigns are the hero, so they sit
+// closer/zoomed; teardown components (motor, pcb) sit a touch smaller for contrast.
+function zoomFor(url: string) {
+  return /trixig_redesign/i.test(url) ? 1.18 : 0.92;
+}
+
+// Models hover this far above the ground plane (the contact shadow sits below).
+const HOVER = 0.16;
+
 // Pull the camera back so a unit-radius sphere fits on the limiting axis
 // (width on a portrait phone), with margin. Keeps every model — tall or wide —
 // fully framed regardless of viewport aspect.
@@ -76,7 +85,7 @@ function Model({
   bottoms: React.MutableRefObject<number[]>;
 }) {
   const group = useRef<THREE.Group>(null);
-  const { object, bottomY } = useNormalized(url);
+  const { object, bottomY } = useNormalized(url, zoomFor(url));
 
   useEffect(() => {
     bottoms.current[index] = bottomY;
@@ -143,13 +152,14 @@ export default function Experience({
     drag.current.angle += drag.current.vel;
     drag.current.vel *= 0.9;
 
-    // keep the contact shadow under whichever model is currently in view
+    // ground plane sits a touch below the active model's base, so the model
+    // reads as hovering just above it
     if (shadow.current) {
       const active = Math.round(scroll.current.current);
       const target = bottoms.current[active] ?? -1;
       shadow.current.position.y = THREE.MathUtils.lerp(
         shadow.current.position.y,
-        target - 0.02,
+        target - HOVER,
         0.15,
       );
     }
@@ -176,10 +186,10 @@ export default function Experience({
 
       <group ref={shadow} position={[0, -1.05, 0]}>
         <ContactShadows
-          opacity={0.32}
-          blur={2.6}
+          opacity={0.26}
+          blur={3.4}
           far={4}
-          scale={8}
+          scale={7}
           resolution={1024}
           color="#000000"
         />
