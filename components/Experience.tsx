@@ -16,6 +16,10 @@ function zoomFor(url: string) {
 // Models hover this far above the ground plane (the contact shadow sits below).
 const HOVER = 0.16;
 
+// Radians a model spins per unit of scroll (i.e. per model scrolled through),
+// centred on its resting pose. Higher = more turntable motion while scrolling.
+const SCROLL_SPIN = 2.0;
+
 // A flattering resting pose per model (radians, [x, y, z]); drag spin adds onto Y.
 function poseFor(url: string): [number, number, number] {
   if (/gearbox_motor/i.test(url)) return [-0.32, -0.7, 0.06];
@@ -133,7 +137,9 @@ function Model({
     if (!visible) return;
 
     const [rx, ry, rz] = poseFor(url);
-    g.rotation.set(rx, drag.current.angle + ry, rz);
+    // resting pose at centre + horizontal-drag spin + scroll-driven turntable
+    const scrollSpin = (scroll.current.current - index) * SCROLL_SPIN;
+    g.rotation.set(rx, drag.current.angle + ry + scrollSpin, rz);
     // slight scale pop so the swap reads as motion, not a blink
     const s = 0.94 + 0.06 * opacity;
     g.scale.setScalar(s);
