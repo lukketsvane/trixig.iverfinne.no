@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import Experience, { DragState, ScrollState } from "@/components/Experience";
+import ModelTitle, { titleFor } from "@/components/ModelTitle";
 
 export default function Gallery({ models }: { models: string[] }) {
   const count = models.length;
   const drag = useRef<DragState>({ angle: 0, vel: 0 });
   const scroll = useRef<ScrollState>({ target: 0, current: 0 });
+  const [active, setActive] = useState(0);
 
   // Map vertical page scroll -> a 0..(count-1) position the scene crossfades over.
   useEffect(() => {
@@ -15,6 +17,9 @@ export default function Gallery({ models }: { models: string[] }) {
       const max = document.body.scrollHeight - window.innerHeight;
       const p = max > 0 ? window.scrollY / max : 0;
       scroll.current.target = p * Math.max(count - 1, 0.0001);
+      // the title swaps at the midpoint between models, in step with the fade
+      const idx = Math.min(count - 1, Math.max(0, Math.round(scroll.current.target)));
+      setActive((prev) => (prev === idx ? prev : idx));
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -46,6 +51,8 @@ export default function Gallery({ models }: { models: string[] }) {
 
   return (
     <main>
+      {count > 0 && <ModelTitle title={titleFor(models[active])} index={active} />}
+
       <div
         className="stage"
         onPointerDown={onPointerDown}

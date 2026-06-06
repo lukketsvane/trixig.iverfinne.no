@@ -1,0 +1,97 @@
+"use client";
+
+export type Title = { eyebrow: string; title: string; claim?: string | null };
+
+// Derive a Trixig+ design-system title from a model filename. Edit the mapping
+// here to rename what shows for each model.
+export function titleFor(path: string): Title {
+  const name = (path.split("/").pop() ?? "").replace(/\.glb$/i, "");
+  const pad = (n: string) => n.padStart(2, "0");
+  let m: RegExpMatchArray | null;
+  if ((m = name.match(/trixig_redesign_0*(\d+)/i))) {
+    return {
+      eyebrow: `Redesign ${pad(m[1])}`,
+      title: "Trixig+",
+      claim: "Synleg. Stille. Truverdig.",
+    };
+  }
+  if ((m = name.match(/gearbox_motor_0*(\d+)/i))) {
+    return { eyebrow: `Komponent ${pad(m[1])}`, title: "Girmotor", claim: null };
+  }
+  if (/pcb_batteri/i.test(name)) {
+    return { eyebrow: "Komponent", title: "Krinskort + batteri", claim: null };
+  }
+  return { eyebrow: "Komponent", title: name.replace(/[_-]+/g, " "), claim: null };
+}
+
+export default function ModelTitle({
+  title,
+  index,
+}: {
+  title: Title;
+  index: number;
+}) {
+  return (
+    <div className="wrap" aria-live="polite">
+      {/* keyed by index so the block fades/slides in on each model change */}
+      <div className="block" key={index}>
+        <p className="eyebrow">{title.eyebrow}</p>
+        <h1 className="title">{title.title}</h1>
+        {title.claim && <p className="claim">{title.claim}</p>}
+      </div>
+
+      <style jsx>{`
+        .wrap {
+          position: fixed;
+          top: calc(env(safe-area-inset-top, 0px) + 24px);
+          left: calc(env(safe-area-inset-left, 0px) + 24px);
+          right: 24px;
+          z-index: 2;
+          pointer-events: none;
+        }
+        .block {
+          animation: enter var(--dur-slow) var(--ease-standard) both;
+        }
+        .eyebrow {
+          font-size: 12px;
+          font-weight: 700;
+          line-height: 1.2;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--ink-3);
+          margin: 0 0 6px;
+        }
+        .title {
+          font-size: clamp(28px, 9vw, 40px);
+          font-weight: 700;
+          line-height: 1.05;
+          letter-spacing: -0.01em;
+          color: var(--ink);
+          margin: 0;
+        }
+        .claim {
+          font-size: 16px;
+          font-weight: 700;
+          line-height: 1.3;
+          color: var(--ink);
+          margin: 8px 0 0;
+        }
+        @keyframes enter {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .block {
+            animation: none;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
