@@ -5,6 +5,14 @@ import { Canvas } from "@react-three/fiber";
 import Experience, { DragState, ScrollState } from "@/components/Experience";
 import ModelTitle, { titleFor } from "@/components/ModelTitle";
 
+const HOLD = 0.35; // screens the last model dwells before handing off
+const FADE = 0.9; // screens over which the canvas cross-fades into the document
+
+function smoothstep(x: number) {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+}
+
 export default function Gallery({
   models,
   pages,
@@ -15,38 +23,44 @@ export default function Gallery({
   const count = models.length;
   const drag = useRef<DragState>({ angle: 0, vel: 0 });
   const scroll = useRef<ScrollState>({ target: 0, current: 0 });
-  const heroRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [inHero, setInHero] = useState(true); // overlays (logo/title) visible
-  const [rendering, setRendering] = useState(true); // canvas at all on screen
+  const [rendering, setRendering] = useState(true); // canvas drawing
 
-  // The hero is `count` screens tall with a sticky canvas; map scroll within it
-  // to a 0..(count-1) position the scene crossfades over. Past the hero, the
-  // canvas scrolls away and the document pages take over.
+  // Scroll length: models, then a dwell + cross-fade, then the document.
+  const heroScreens = count - 1 + HOLD + FADE;
+
   useEffect(() => {
     const onScroll = () => {
       const vh = window.innerHeight;
-      const t = Math.min(count - 1, Math.max(0, window.scrollY / vh));
-      scroll.current.target = t;
-      const idx = Math.round(t);
+      const sy = window.scrollY;
+
+      // model crossfade position
+      scroll.current.target = Math.min(count - 1, Math.max(0, sy / vh));
+      const idx = Math.round(scroll.current.target);
       setActive((p) => (p === idx ? p : idx));
 
-      const bottom =
-        heroRef.current?.getBoundingClientRect().bottom ?? vh * count;
+      // hero -> document cross-fade (the canvas dissolves into page 1)
+      const fade = smoothstep((sy - (count - 1 + HOLD) * vh) / (FADE * vh));
+      const stage = stageRef.current;
+      if (stage) {
+        stage.style.opacity = String(1 - fade);
+        stage.style.pointerEvents = fade > 0.001 ? "none" : "auto";
+      }
       setInHero((p) => {
-        const v = bottom > vh * 0.9;
+        const v = fade < 0.04;
         return p === v ? p : v;
       });
       setRendering((p) => {
-        const v = bottom > 0;
+        const v = fade < 0.999;
         return p === v ? p : v;
       });
 
       const max = document.documentElement.scrollHeight - vh;
-      const prog = max > 0 ? window.scrollY / max : 0;
       if (progressRef.current) {
-        progressRef.current.style.transform = `scaleX(${prog})`;
+        progressRef.current.style.transform = `scaleX(${max > 0 ? sy / max : 0})`;
       }
     };
     onScroll();
@@ -95,27 +109,30 @@ export default function Gallery({
         />
       )}
 
-      <div className="hero" ref={heroRef} style={{ height: `${count * 100}dvh` }}>
-        <div
-          className="stage"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-          onPointerLeave={endDrag}
+      {/* fixed canvas layer; cross-fades out to reveal the document beneath */}
+      <div
+        className="stage"
+        ref={stageRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onPointerLeave={endDrag}
+      >
+        <Canvas
+          camera={{ position: [0, 0, 8], fov: 35 }}
+          dpr={[1, 2]}
+          gl={{ antialias: true, powerPreference: "high-performance" }}
+          performance={{ min: 0.5 }}
+          frameloop={rendering ? "always" : "never"}
+          shadows
         >
-          <Canvas
-            camera={{ position: [0, 0, 8], fov: 35 }}
-            dpr={[1, 2]}
-            gl={{ antialias: true, powerPreference: "high-performance" }}
-            performance={{ min: 0.5 }}
-            frameloop={rendering ? "always" : "never"}
-            shadows
-          >
-            <Experience models={models} drag={drag} scroll={scroll} />
-          </Canvas>
-        </div>
+          <Experience models={models} drag={drag} scroll={scroll} />
+        </Canvas>
       </div>
+
+      {/* spacer creates the scroll length for the model showcase + handoff */}
+      <div className="spacer" style={{ height: `${heroScreens * 100}dvh` }} />
 
       {pages.length > 0 && (
         <section className="doc">
@@ -149,10 +166,10 @@ export default function Gallery({
         }
         .logo {
           position: fixed;
-          top: calc(env(safe-area-inset-top, 0px) + var(--s-5));
-          left: calc(env(safe-area-inset-left, 0px) + var(--s-5));
+          top: calc(env(safe-area-inset-top, 0px) + var(--s-4));
+          left: calc(env(safe-area-inset-left, 0px) + var(--s-4));
           z-index: 3;
-          width: 60px;
+          width: 84px;
           height: auto;
           user-select: none;
           pointer-events: none;
@@ -161,31 +178,31 @@ export default function Gallery({
         .logo.faded {
           opacity: 0;
         }
-        .hero {
-          position: relative;
-          width: 100%;
-        }
         .stage {
-          position: sticky;
-          top: 0;
-          width: 100%;
+          position: fixed;
+          inset: 0;
+          width: 100vw;
           height: 100dvh;
-          z-index: 1;
+          z-index: 2;
           touch-action: pan-y;
           cursor: grab;
+          will-change: opacity;
         }
         .stage:active {
           cursor: grabbing;
         }
+        .spacer {
+          width: 100%;
+        }
         .doc {
           position: relative;
-          z-index: 2;
+          z-index: 1;
           background: var(--grey-100);
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: var(--s-3);
-          padding: var(--s-3) var(--s-3) calc(env(safe-area-inset-bottom, 0px) + var(--s-7));
+          gap: var(--s-2);
+          padding: var(--s-2) var(--s-2) calc(env(safe-area-inset-bottom, 0px) + var(--s-6));
         }
         .page {
           width: 100%;
