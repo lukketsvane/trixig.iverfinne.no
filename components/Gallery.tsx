@@ -51,6 +51,9 @@ export default function Gallery({ models }: { models: string[] }) {
 
   return (
     <main>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className="logo" src="/ikea-logo.webp" alt="IKEA" draggable={false} />
+
       {count > 0 && <ModelTitle title={titleFor(models[active])} index={active} />}
 
       <div
@@ -67,7 +70,6 @@ export default function Gallery({ models }: { models: string[] }) {
           gl={{ antialias: true }}
           shadows
         >
-          <color attach="background" args={["#ededed"]} />
           <Experience models={models} drag={drag} scroll={scroll} />
         </Canvas>
       </div>
@@ -78,6 +80,17 @@ export default function Gallery({ models }: { models: string[] }) {
       ))}
 
       <style jsx>{`
+        .logo {
+          position: fixed;
+          top: calc(env(safe-area-inset-top, 0px) + 24px);
+          left: calc(env(safe-area-inset-left, 0px) + 24px);
+          z-index: 3;
+          width: 76px;
+          height: auto;
+          border-radius: 8px;
+          user-select: none;
+          pointer-events: none;
+        }
         .stage {
           position: fixed;
           inset: 0;

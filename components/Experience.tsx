@@ -16,6 +16,27 @@ function zoomFor(url: string) {
 // Models hover this far above the ground plane (the contact shadow sits below).
 const HOVER = 0.16;
 
+// A flattering resting pose per model (radians, [x, y, z]); drag spin adds onto Y.
+function poseFor(url: string): [number, number, number] {
+  if (/gearbox_motor/i.test(url)) return [-0.32, -0.7, 0.06];
+  return [0, 0, 0];
+}
+
+// Subtle studio backdrop tones; the active color shifts roughly every 3 models.
+const BG = ["#ededed", "#f0ebe4", "#e6ecef", "#eceee9"].map(
+  (h) => new THREE.Color(h),
+);
+const _bg = new THREE.Color();
+function bgAt(t: number) {
+  const seg = t / 3;
+  const i = Math.floor(seg);
+  let f = seg - i;
+  f = f * f * (3 - 2 * f); // smoothstep
+  return _bg
+    .copy(BG[((i % BG.length) + BG.length) % BG.length])
+    .lerp(BG[((i + 1) % BG.length + BG.length) % BG.length], f);
+}
+
 // Pull the camera back so a unit-radius sphere fits on the limiting axis
 // (width on a portrait phone), with margin. Keeps every model — tall or wide —
 // fully framed regardless of viewport aspect.
@@ -105,7 +126,8 @@ function Model({
     g.visible = visible;
     if (!visible) return;
 
-    g.rotation.y = drag.current.angle;
+    const [rx, ry, rz] = poseFor(url);
+    g.rotation.set(rx, drag.current.angle + ry, rz);
     // slight scale pop so the swap reads as motion, not a blink
     const s = 0.94 + 0.06 * opacity;
     g.scale.setScalar(s);
@@ -137,10 +159,12 @@ export default function Experience({
 }) {
   const bottoms = useRef<number[]>([]);
   const shadow = useRef<THREE.Group>(null);
+  const scene = useThree((s) => s.scene);
 
   useEffect(() => {
+    scene.background = new THREE.Color("#ededed");
     models.forEach((m) => useGLTF.preload(m, true));
-  }, [models]);
+  }, [models, scene]);
 
   useFrame(() => {
     // smooth the scroll position and let drag velocity coast (inertia)
@@ -151,6 +175,11 @@ export default function Experience({
     );
     drag.current.angle += drag.current.vel;
     drag.current.vel *= 0.9;
+
+    // subtle studio backdrop that shifts as you move through the models
+    if (scene.background instanceof THREE.Color) {
+      scene.background.copy(bgAt(scroll.current.current));
+    }
 
     // ground plane sits a touch below the active model's base, so the model
     // reads as hovering just above it
