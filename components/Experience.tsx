@@ -81,7 +81,11 @@ function useNormalized(url: string, targetRadius = 1) {
       mesh.castShadow = true;
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       mats.forEach((m) => {
-        const mat = m as THREE.MeshStandardMaterial;
+        const mat = m as THREE.MeshPhysicalMaterial;
+        // Kill transmission/volume: it forces a per-frame full-screen render
+        // target (heavy on iOS) and the brand is matte anyway.
+        if ("transmission" in mat) mat.transmission = 0;
+        if ("thickness" in mat) mat.thickness = 0;
         mat.transparent = true; // enable crossfade; depthWrite stays on for clean dissolve
         mat.depthWrite = true;
       });
@@ -219,7 +223,7 @@ export default function Experience({
           blur={3.4}
           far={4}
           scale={7}
-          resolution={1024}
+          resolution={512}
           color="#000000"
         />
       </group>

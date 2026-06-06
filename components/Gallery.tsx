@@ -67,7 +67,8 @@ export default function Gallery({ models }: { models: string[] }) {
         <Canvas
           camera={{ position: [0, 0, 8], fov: 35 }}
           dpr={[1, 2]}
-          gl={{ antialias: true }}
+          gl={{ antialias: true, powerPreference: "high-performance" }}
+          performance={{ min: 0.5 }}
           shadows
         >
           <Experience models={models} drag={drag} scroll={scroll} />
