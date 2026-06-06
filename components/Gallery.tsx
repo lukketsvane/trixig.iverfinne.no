@@ -149,12 +149,11 @@ export default function Gallery({
         }
         .logo {
           position: fixed;
-          top: calc(env(safe-area-inset-top, 0px) + 24px);
-          left: calc(env(safe-area-inset-left, 0px) + 24px);
+          top: calc(env(safe-area-inset-top, 0px) + var(--s-5));
+          left: calc(env(safe-area-inset-left, 0px) + var(--s-5));
           z-index: 3;
           width: 60px;
           height: auto;
-          border-radius: 6px;
           user-select: none;
           pointer-events: none;
           transition: opacity var(--dur-slow) var(--ease-standard);
@@ -181,12 +180,12 @@ export default function Gallery({
         .doc {
           position: relative;
           z-index: 2;
-          background: var(--bg);
+          background: var(--grey-100);
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 12px;
-          padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + 56px);
+          gap: var(--s-3);
+          padding: var(--s-3) var(--s-3) calc(env(safe-area-inset-bottom, 0px) + var(--s-7));
         }
         .page {
           width: 100%;

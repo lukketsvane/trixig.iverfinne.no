@@ -22,8 +22,9 @@ function poseFor(url: string): [number, number, number] {
   return [0, 0, 0];
 }
 
-// Subtle studio backdrop tones; the active color shifts roughly every 3 models.
-const BG = ["#ededed", "#f0ebe4", "#e6ecef", "#eceee9"].map(
+// Subtle studio backdrop tones around --grey-100 (matches the document field
+// so the hero hands off seamlessly); shifts roughly every 3 models.
+const BG = ["#eeeeee", "#f1ece5", "#e7edf0", "#edefe9"].map(
   (h) => new THREE.Color(h),
 );
 const _bg = new THREE.Color();
@@ -167,7 +168,7 @@ export default function Experience({
   const scene = useThree((s) => s.scene);
 
   useEffect(() => {
-    scene.background = new THREE.Color("#ededed");
+    scene.background = new THREE.Color("#eeeeee");
     models.forEach((m) => useGLTF.preload(m, true));
   }, [models, scene]);
 
