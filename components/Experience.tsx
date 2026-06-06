@@ -16,13 +16,17 @@ function zoomFor(url: string) {
 // Models hover this far above the ground plane (the contact shadow sits below).
 const HOVER = 0.16;
 
-// Radians a model spins per unit of scroll (i.e. per model scrolled through),
-// centred on its resting pose. Higher = more turntable motion while scrolling.
+// Radians a model spins per unit of scroll (i.e. per model scrolled through).
+// Higher = more turntable motion while scrolling.
 const SCROLL_SPIN = 2.0;
+// Global starting angle so the first model opens at a flattering 3/4 view;
+// applied to every model, so the continuous spin is unaffected.
+const SPIN_PHASE = -0.7;
 
-// A flattering resting pose per model (radians, [x, y, z]); drag spin adds onto Y.
+// A flattering resting tilt per model (radians, [x, y, z]). Y is left at 0 so
+// the scroll-driven spin stays continuous from one model to the next.
 function poseFor(url: string): [number, number, number] {
-  if (/gearbox_motor/i.test(url)) return [-0.32, -0.7, 0.06];
+  if (/gearbox_motor/i.test(url)) return [-0.32, 0, 0.06];
   return [0, 0, 0];
 }
 
@@ -137,8 +141,10 @@ function Model({
     if (!visible) return;
 
     const [rx, ry, rz] = poseFor(url);
-    // resting pose at centre + horizontal-drag spin + scroll-driven turntable
-    const scrollSpin = (scroll.current.current - index) * SCROLL_SPIN;
+    // Global (not per-index) scroll spin: every model reads the same angle, so
+    // each one picks up exactly where the previous left off — one continuous
+    // turntable across the whole scroll. Horizontal drag adds on top.
+    const scrollSpin = SPIN_PHASE + scroll.current.current * SCROLL_SPIN;
     g.rotation.set(rx, drag.current.angle + ry + scrollSpin, rz);
     // slight scale pop so the swap reads as motion, not a blink
     const s = 0.94 + 0.06 * opacity;
