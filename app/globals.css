@@ -20,6 +20,7 @@
 
   --ink: #111111; /* primary text */
   --ink-3: #767676; /* tertiary, eyebrow/caption */
+  --rule: #e5e5e5; /* hairline / divider */
   --trixig-blue: #a6c8dc; /* the one accent */
 
   --bg: #ededed; /* light grey, bright neutral */
