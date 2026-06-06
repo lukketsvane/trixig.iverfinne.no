@@ -27,12 +27,14 @@ export function titleFor(path: string): Title {
 export default function ModelTitle({
   title,
   index,
+  visible = true,
 }: {
   title: Title;
   index: number;
+  visible?: boolean;
 }) {
   return (
-    <div className="wrap" aria-live="polite">
+    <div className={`wrap ${visible ? "" : "faded"}`} aria-live="polite">
       {/* keyed by index so the block fades/slides in on each model change */}
       <div className="block" key={index}>
         <p className="eyebrow">{title.eyebrow}</p>
@@ -48,6 +50,10 @@ export default function ModelTitle({
           right: 24px;
           z-index: 2;
           pointer-events: none;
+          transition: opacity var(--dur-slow) var(--ease-standard);
+        }
+        .wrap.faded {
+          opacity: 0;
         }
         .block {
           animation: enter var(--dur-slow) var(--ease-standard) both;

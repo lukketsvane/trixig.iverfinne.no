@@ -120,11 +120,12 @@ function Model({
     const g = group.current;
     if (!g) return;
 
-    // Sequential fade: a model is fully gone by the time its neighbour starts
-    // to appear, so two transmissive models never overlap into a ghost.
+    // Plateau fade: a model holds full opacity across most of its range, then
+    // crosses over in a narrow band near the midpoint. Neighbours never overlap
+    // (no ghosting), and any resting scroll position shows a clean model.
     const d = Math.abs(scroll.current.current - index);
-    let opacity = THREE.MathUtils.clamp(1 - d * 2, 0, 1);
-    opacity = opacity * opacity * (3 - 2 * opacity); // smoothstep ease
+    const t = THREE.MathUtils.clamp((d - 0.35) / 0.15, 0, 1);
+    const opacity = 1 - t * t * (3 - 2 * t);
 
     const visible = opacity > 0.001;
     g.visible = visible;

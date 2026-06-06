@@ -5,21 +5,42 @@ import { Canvas } from "@react-three/fiber";
 import Experience, { DragState, ScrollState } from "@/components/Experience";
 import ModelTitle, { titleFor } from "@/components/ModelTitle";
 
-export default function Gallery({ models }: { models: string[] }) {
+export default function Gallery({
+  models,
+  pages,
+}: {
+  models: string[];
+  pages: string[];
+}) {
   const count = models.length;
   const drag = useRef<DragState>({ angle: 0, vel: 0 });
   const scroll = useRef<ScrollState>({ target: 0, current: 0 });
+  const heroRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  const [inHero, setInHero] = useState(true); // overlays (logo/title) visible
+  const [rendering, setRendering] = useState(true); // canvas at all on screen
 
-  // Map vertical page scroll -> a 0..(count-1) position the scene crossfades over.
+  // The hero is `count` screens tall with a sticky canvas; map scroll within it
+  // to a 0..(count-1) position the scene crossfades over. Past the hero, the
+  // canvas scrolls away and the document pages take over.
   useEffect(() => {
     const onScroll = () => {
-      const max = document.body.scrollHeight - window.innerHeight;
-      const p = max > 0 ? window.scrollY / max : 0;
-      scroll.current.target = p * Math.max(count - 1, 0.0001);
-      // the title swaps at the midpoint between models, in step with the fade
-      const idx = Math.min(count - 1, Math.max(0, Math.round(scroll.current.target)));
-      setActive((prev) => (prev === idx ? prev : idx));
+      const vh = window.innerHeight;
+      const t = Math.min(count - 1, Math.max(0, window.scrollY / vh));
+      scroll.current.target = t;
+      const idx = Math.round(t);
+      setActive((p) => (p === idx ? p : idx));
+
+      const bottom =
+        heroRef.current?.getBoundingClientRect().bottom ?? vh * count;
+      setInHero((p) => {
+        const v = bottom > vh * 0.9;
+        return p === v ? p : v;
+      });
+      setRendering((p) => {
+        const v = bottom > 0;
+        return p === v ? p : v;
+      });
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -34,16 +55,14 @@ export default function Gallery({ models }: { models: string[] }) {
   // swipes scroll the page natively, so the two gestures never fight.
   const dragging = useRef(false);
   const lastX = useRef(0);
-
   const onPointerDown = (e: React.PointerEvent) => {
     dragging.current = true;
     lastX.current = e.clientX;
   };
   const onPointerMove = (e: React.PointerEvent) => {
     if (!dragging.current) return;
-    const dx = e.clientX - lastX.current;
+    drag.current.vel = (e.clientX - lastX.current) * 0.006;
     lastX.current = e.clientX;
-    drag.current.vel = dx * 0.006;
   };
   const endDrag = () => {
     dragging.current = false;
@@ -52,33 +71,58 @@ export default function Gallery({ models }: { models: string[] }) {
   return (
     <main>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="logo" src="/ikea-logo.webp" alt="IKEA" draggable={false} />
+      <img
+        className={`logo ${inHero ? "" : "faded"}`}
+        src="/ikea-logo.webp"
+        alt="IKEA"
+        draggable={false}
+      />
 
-      {count > 0 && <ModelTitle title={titleFor(models[active])} index={active} />}
+      {count > 0 && (
+        <ModelTitle
+          title={titleFor(models[active])}
+          index={active}
+          visible={inHero}
+        />
+      )}
 
-      <div
-        className="stage"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onPointerLeave={endDrag}
-      >
-        <Canvas
-          camera={{ position: [0, 0, 8], fov: 35 }}
-          dpr={[1, 2]}
-          gl={{ antialias: true, powerPreference: "high-performance" }}
-          performance={{ min: 0.5 }}
-          shadows
+      <div className="hero" ref={heroRef} style={{ height: `${count * 100}dvh` }}>
+        <div
+          className="stage"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onPointerLeave={endDrag}
         >
-          <Experience models={models} drag={drag} scroll={scroll} />
-        </Canvas>
+          <Canvas
+            camera={{ position: [0, 0, 8], fov: 35 }}
+            dpr={[1, 2]}
+            gl={{ antialias: true, powerPreference: "high-performance" }}
+            performance={{ min: 0.5 }}
+            frameloop={rendering ? "always" : "never"}
+            shadows
+          >
+            <Experience models={models} drag={drag} scroll={scroll} />
+          </Canvas>
+        </div>
       </div>
 
-      {/* Empty full-height sections create the vertical scroll + snap points. */}
-      {Array.from({ length: count }).map((_, i) => (
-        <section key={i} className="panel" />
-      ))}
+      {pages.length > 0 && (
+        <section className="doc">
+          {pages.map((src, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={src}
+              className="page"
+              src={src}
+              alt={`Side ${i + 1}`}
+              loading="lazy"
+              decoding="async"
+            />
+          ))}
+        </section>
+      )}
 
       <style jsx>{`
         .logo {
@@ -91,11 +135,19 @@ export default function Gallery({ models }: { models: string[] }) {
           border-radius: 8px;
           user-select: none;
           pointer-events: none;
+          transition: opacity var(--dur-slow) var(--ease-standard);
+        }
+        .logo.faded {
+          opacity: 0;
+        }
+        .hero {
+          position: relative;
+          width: 100%;
         }
         .stage {
-          position: fixed;
-          inset: 0;
-          width: 100vw;
+          position: sticky;
+          top: 0;
+          width: 100%;
           height: 100dvh;
           z-index: 1;
           touch-action: pan-y;
@@ -104,16 +156,22 @@ export default function Gallery({ models }: { models: string[] }) {
         .stage:active {
           cursor: grabbing;
         }
-        .panel {
+        .doc {
           position: relative;
-          height: 100dvh;
-          width: 100%;
-          scroll-snap-align: start;
+          z-index: 2;
+          background: var(--bg);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 14px;
+          padding: 14px 14px calc(env(safe-area-inset-bottom, 0px) + 48px);
         }
-      `}</style>
-      <style jsx global>{`
-        html {
-          scroll-snap-type: y mandatory;
+        .page {
+          width: 100%;
+          max-width: 720px;
+          height: auto;
+          display: block;
+          border-radius: 6px;
         }
       `}</style>
     </main>
