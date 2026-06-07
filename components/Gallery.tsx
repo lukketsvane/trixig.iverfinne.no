@@ -110,9 +110,12 @@ export default function Gallery({
   // ---- document page scrubber (iOS-native feel) ----
   const pageEls = useRef<(HTMLImageElement | null)[]>([]);
   const stripRef = useRef<HTMLDivElement>(null);
+  const docRef = useRef<HTMLElement>(null);
   const scrubbing = useRef(false);
+  const pageRef = useRef(0);
   const [page, setPage] = useState(0);
   const [scrub, setScrub] = useState(false);
+  const [thumb, setThumb] = useState(0); // 0..1 finger position while scrubbing
 
   useEffect(() => {
     if (!pages.length) return;
@@ -127,6 +130,7 @@ export default function Gallery({
         let best = 0;
         for (let i = 1; i < ratios.length; i++)
           if (ratios[i] > ratios[best]) best = i;
+        pageRef.current = best;
         setPage((p) => (p === best ? p : best));
       },
       { threshold: [0, 0.5, 1] },
@@ -135,14 +139,20 @@ export default function Gallery({
     return () => obs.disconnect();
   }, [pages.length]);
 
+  // Continuous, proportional scrub: the finger position maps across the whole
+  // document so scrolling follows the finger smoothly (no page-snapping jumps).
   const scrubTo = (clientY: number) => {
     const r = stripRef.current?.getBoundingClientRect();
-    if (!r) return;
+    const doc = docRef.current;
+    if (!r || !doc) return;
     const f = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+    const docTop = doc.offsetTop;
+    const docEnd = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo(0, docTop + f * (docEnd - docTop));
     const i = Math.round(f * (pages.length - 1));
+    pageRef.current = i;
     setPage(i);
-    const el = pageEls.current[i];
-    if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY);
+    setThumb(f);
   };
   const scrubDown = (e: React.PointerEvent) => {
     scrubbing.current = true;
@@ -153,9 +163,16 @@ export default function Gallery({
   const scrubMove = (e: React.PointerEvent) => {
     if (scrubbing.current) scrubTo(e.clientY);
   };
+  // on release, settle smoothly onto the nearest page
   const scrubUp = () => {
     scrubbing.current = false;
     setScrub(false);
+    const el = pageEls.current[pageRef.current];
+    if (el)
+      window.scrollTo({
+        top: el.getBoundingClientRect().top + window.scrollY,
+        behavior: "smooth",
+      });
   };
 
   return (
@@ -199,7 +216,7 @@ export default function Gallery({
 
       {pages.length > 0 && (
         <>
-          <section className="doc">
+          <section className="doc" ref={docRef}>
             {pages.map((src, i) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -235,7 +252,9 @@ export default function Gallery({
             ))}
             <span
               className="bubble"
-              style={{ top: `${(page / (pages.length - 1)) * 100}%` }}
+              style={{
+                top: `${(scrub ? thumb : page / (pages.length - 1)) * 100}%`,
+              }}
             >
               {page + 1}
             </span>
