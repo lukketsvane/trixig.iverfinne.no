@@ -64,7 +64,12 @@ function Rig() {
 }
 
 export type DragState = { angle: number; vel: number };
-export type ScrollState = { target: number; current: number };
+// target/current are in "screens scrolled" (scrollY / viewportHeight); pos is the
+// smoothed model position (0..count-1) derived from current via MODEL_LEN.
+export type ScrollState = { target: number; current: number; pos: number };
+
+// How many screens of scroll each model occupies (a longer, calmer read).
+export const MODEL_LEN = 1.4;
 
 // Normalize a loaded model so its bounding box is centered at the origin and
 // scaled to a consistent height, regardless of the source export's units.
@@ -132,7 +137,8 @@ function Model({
     // Plateau fade: a model holds full opacity across most of its range, then
     // crosses over in a narrow band near the midpoint. Neighbours never overlap
     // (no ghosting), and any resting scroll position shows a clean model.
-    const d = Math.abs(scroll.current.current - index);
+    const pos = scroll.current.pos;
+    const d = Math.abs(pos - index);
     const t = THREE.MathUtils.clamp((d - 0.35) / 0.15, 0, 1);
     const opacity = 1 - t * t * (3 - 2 * t);
 
@@ -144,7 +150,7 @@ function Model({
     // Global (not per-index) scroll spin: every model reads the same angle, so
     // each one picks up exactly where the previous left off — one continuous
     // turntable across the whole scroll. Horizontal drag adds on top.
-    const scrollSpin = SPIN_PHASE + scroll.current.current * SCROLL_SPIN;
+    const scrollSpin = SPIN_PHASE + pos * SCROLL_SPIN;
     g.rotation.set(rx, drag.current.angle + ry + scrollSpin, rz);
     // slight scale pop so the swap reads as motion, not a blink
     const s = 0.94 + 0.06 * opacity;
@@ -184,26 +190,19 @@ export default function Experience({
     models.forEach((m) => useGLTF.preload(m, true));
   }, [models, scene]);
 
+  // Scroll smoothing + the DOM crossfade live in Gallery's rAF loop; here we
+  // only read scroll.current.pos (already smoothed) to drive the 3D scene.
   useFrame(() => {
-    // smooth the scroll position and let drag velocity coast (inertia)
-    scroll.current.current = THREE.MathUtils.lerp(
-      scroll.current.current,
-      scroll.current.target,
-      0.12,
-    );
-    drag.current.angle += drag.current.vel;
-    drag.current.vel *= 0.9;
+    const pos = scroll.current.pos;
 
-    // subtle studio backdrop that shifts as you move through the models
     if (scene.background instanceof THREE.Color) {
-      scene.background.copy(bgAt(scroll.current.current));
+      scene.background.copy(bgAt(pos));
     }
 
     // ground plane sits a touch below the active model's base, so the model
     // reads as hovering just above it
     if (shadow.current) {
-      const active = Math.round(scroll.current.current);
-      const target = bottoms.current[active] ?? -1;
+      const target = bottoms.current[Math.round(pos)] ?? -1;
       shadow.current.position.y = THREE.MathUtils.lerp(
         shadow.current.position.y,
         target - HOVER,
