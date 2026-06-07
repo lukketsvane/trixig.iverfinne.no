@@ -13,8 +13,17 @@ function zoomFor(url: string) {
   return /trixig_redesign/i.test(url) ? 1.18 : 0.92;
 }
 
-// Models hover this far above the ground plane (the contact shadow sits below).
-const HOVER = 0.16;
+// Grounded models sit just above the shadow; floating ones are lifted more.
+const HOVER = 0.1;
+
+// Per-model lift above the ground (by scroll-order index). The first two are
+// the teardown components — they float in ("landing"), the motor highest; the
+// redesigns that follow sit grounded. Gives the page a settling feel.
+function liftFor(index: number) {
+  if (index === 0) return 0.55; // motor — furthest above ground
+  if (index === 1) return 0.3; // pcb + battery
+  return 0; // redesigns — grounded
+}
 
 // Radians a model spins per unit of scroll (i.e. per model scrolled through).
 // Higher = more turntable motion while scrolling.
@@ -152,6 +161,7 @@ function Model({
     // turntable across the whole scroll. Horizontal drag adds on top.
     const scrollSpin = SPIN_PHASE + pos * SCROLL_SPIN;
     g.rotation.set(rx, drag.current.angle + ry + scrollSpin, rz);
+    g.position.y = liftFor(index); // float components, ground the redesigns
     // slight scale pop so the swap reads as motion, not a blink
     const s = 0.94 + 0.06 * opacity;
     g.scale.setScalar(s);
