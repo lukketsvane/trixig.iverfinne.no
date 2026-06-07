@@ -9,8 +9,7 @@ import Experience, {
 } from "@/components/Experience";
 import ModelTitle, { titleFor } from "@/components/ModelTitle";
 
-const HOLD = 0.4; // screens the last model dwells before the handoff
-const FADE = 1.0; // screens over which the canvas cross-fades into the document
+const DWELL = 0.6; // extra screens on the last model before the document
 
 export default function Gallery({
   models,
@@ -22,13 +21,11 @@ export default function Gallery({
   const count = models.length;
   const drag = useRef<DragState>({ angle: 0, vel: 0 });
   const scroll = useRef<ScrollState>({ target: 0, current: 0, pos: 0 });
-  const stageRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [inHero, setInHero] = useState(true);
 
-  const fadeStart = (count - 1) * MODEL_LEN + HOLD;
-  const heroScreens = fadeStart + FADE; // document begins here
+  const showcaseScreens = (count - 1) * MODEL_LEN + DWELL; // document begins here
 
   useEffect(() => {
     const onScroll = () => {
@@ -39,8 +36,8 @@ export default function Gallery({
       const idx = Math.round(Math.min(count - 1, Math.max(0, S / MODEL_LEN)));
       setActive((p) => (p === idx ? p : idx));
 
-      const fade = Math.min(1, Math.max(0, (S - fadeStart) / FADE));
-      const hero = fade < 0.04;
+      // title shows over the showcase; hide it as the document slides up
+      const hero = S < showcaseScreens - 0.5;
       setInHero((p) => (p === hero ? p : hero));
 
       const max = document.documentElement.scrollHeight - vh;
@@ -55,11 +52,30 @@ export default function Gallery({
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, [count, fadeStart]);
+  }, [count, showcaseScreens]);
 
-  // Smooth everything in a rAF loop so coarse iOS scroll events become
-  // continuous motion (no jaggedy crossfade), and drive the canvas opacity
-  // here in the DOM tree where the ref is reliable.
+  // iOS Safari's bottom toolbar overlaps fixed bottom content; measure it so the
+  // title can sit just above it.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const inset = Math.max(
+        0,
+        document.documentElement.clientHeight - vv.height - vv.offsetTop,
+      );
+      document.documentElement.style.setProperty("--vv-bottom", `${inset}px`);
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
+
+  // Smooth scroll + drag in a rAF loop so coarse iOS scroll becomes continuous.
   useEffect(() => {
     let raf = 0;
     const loop = () => {
@@ -68,18 +84,14 @@ export default function Gallery({
       s.pos = Math.min(count - 1, Math.max(0, s.current / MODEL_LEN));
       drag.current.angle += drag.current.vel;
       drag.current.vel *= 0.9;
-      if (stageRef.current) {
-        const f = Math.min(1, Math.max(0, (s.current - fadeStart) / FADE));
-        stageRef.current.style.opacity = String(1 - f * f * (3 - 2 * f));
-      }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [count, fadeStart]);
+  }, [count]);
 
   // Horizontal drag spins the model; `touch-action: pan-y` lets vertical
-  // swipes scroll the page natively, so the two gestures never fight.
+  // swipes scroll the page natively.
   const dragging = useRef(false);
   const lastX = useRef(0);
   const onPointerDown = (e: React.PointerEvent) => {
@@ -95,25 +107,19 @@ export default function Gallery({
     dragging.current = false;
   };
 
-  // tap bottom-left to advance to the next model (or into the document)
-  const goNext = () => {
-    const vh = window.innerHeight;
-    const cm = Math.round(
-      Math.min(count - 1, Math.max(0, window.scrollY / vh / MODEL_LEN)),
-    );
-    const top =
-      cm < count - 1 ? (cm + 1) * MODEL_LEN * vh : heroScreens * vh + 1;
-    window.scrollTo({ top, behavior: "smooth" });
-  };
-
-  // right-side document index: track the page nearest the viewport centre
+  // ---- document page scrubber (iOS-native feel) ----
   const pageEls = useRef<(HTMLImageElement | null)[]>([]);
+  const stripRef = useRef<HTMLDivElement>(null);
+  const scrubbing = useRef(false);
   const [page, setPage] = useState(0);
+  const [scrub, setScrub] = useState(false);
+
   useEffect(() => {
     if (!pages.length) return;
     const ratios: number[] = new Array(pages.length).fill(0);
     const obs = new IntersectionObserver(
       (entries) => {
+        if (scrubbing.current) return;
         for (const e of entries) {
           const i = Number((e.target as HTMLElement).dataset.i);
           ratios[i] = e.isIntersecting ? e.intersectionRatio : 0;
@@ -123,14 +129,34 @@ export default function Gallery({
           if (ratios[i] > ratios[best]) best = i;
         setPage((p) => (p === best ? p : best));
       },
-      { threshold: [0, 0.25, 0.5, 0.75, 1] },
+      { threshold: [0, 0.5, 1] },
     );
     pageEls.current.forEach((el) => el && obs.observe(el));
     return () => obs.disconnect();
   }, [pages.length]);
 
-  const jump = (i: number) =>
-    pageEls.current[i]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const scrubTo = (clientY: number) => {
+    const r = stripRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const f = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+    const i = Math.round(f * (pages.length - 1));
+    setPage(i);
+    const el = pageEls.current[i];
+    if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY);
+  };
+  const scrubDown = (e: React.PointerEvent) => {
+    scrubbing.current = true;
+    setScrub(true);
+    stripRef.current?.setPointerCapture(e.pointerId);
+    scrubTo(e.clientY);
+  };
+  const scrubMove = (e: React.PointerEvent) => {
+    if (scrubbing.current) scrubTo(e.clientY);
+  };
+  const scrubUp = () => {
+    scrubbing.current = false;
+    setScrub(false);
+  };
 
   return (
     <main>
@@ -145,18 +171,12 @@ export default function Gallery({
       />
 
       {count > 0 && (
-        <ModelTitle
-          title={titleFor(models[active])}
-          index={active}
-          visible={inHero}
-          onNext={goNext}
-        />
+        <ModelTitle title={titleFor(models[active])} index={active} visible={inHero} />
       )}
 
-      {/* fixed canvas layer; cross-fades out (in the render loop) to reveal the document */}
+      {/* fixed canvas; the document scrolls up over it (no fade) */}
       <div
         className="stage"
-        ref={stageRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -175,7 +195,7 @@ export default function Gallery({
         </Canvas>
       </div>
 
-      <div className="spacer" style={{ height: `${heroScreens * 100}dvh` }} />
+      <div className="spacer" style={{ height: `${showcaseScreens * 100}dvh` }} />
 
       {pages.length > 0 && (
         <>
@@ -197,18 +217,29 @@ export default function Gallery({
             ))}
           </section>
 
-          <nav className={`index ${inHero ? "faded" : ""}`} aria-label="Sider">
+          <div
+            className={`scrub ${inHero ? "hidden" : ""} ${scrub ? "active" : ""}`}
+            ref={stripRef}
+            onPointerDown={scrubDown}
+            onPointerMove={scrubMove}
+            onPointerUp={scrubUp}
+            onPointerCancel={scrubUp}
+            role="slider"
+            aria-label="Bla i sider"
+            aria-valuenow={page + 1}
+            aria-valuemin={1}
+            aria-valuemax={pages.length}
+          >
             {pages.map((_, i) => (
-              <button
-                key={i}
-                className={`tick ${i === page ? "on" : ""}`}
-                onClick={() => jump(i)}
-                aria-label={`Side ${i + 1}`}
-              >
-                <span className="n">{i + 1}</span>
-              </button>
+              <span key={i} className={`tk ${i === page ? "on" : ""}`} />
             ))}
-          </nav>
+            <span
+              className="bubble"
+              style={{ top: `${(page / (pages.length - 1)) * 100}%` }}
+            >
+              {page + 1}
+            </span>
+          </div>
         </>
       )}
 
@@ -245,10 +276,9 @@ export default function Gallery({
           inset: 0;
           width: 100vw;
           height: 100dvh;
-          z-index: 2;
+          z-index: 1;
           touch-action: pan-y;
           cursor: grab;
-          will-change: opacity;
         }
         .stage:active {
           cursor: grabbing;
@@ -258,7 +288,7 @@ export default function Gallery({
         }
         .doc {
           position: relative;
-          z-index: 1;
+          z-index: 2;
           background: var(--grey-100);
           display: flex;
           flex-direction: column;
@@ -273,57 +303,66 @@ export default function Gallery({
           display: block;
           border: 1px solid var(--rule);
         }
-        .index {
+
+        /* ---- iOS-style page scrubber ---- */
+        .scrub {
           position: fixed;
-          right: calc(env(safe-area-inset-right, 0px) + var(--s-1));
+          right: 0;
           top: 50%;
           transform: translateY(-50%);
+          height: min(62vh, 560px);
+          width: 44px;
           z-index: 4;
           display: flex;
           flex-direction: column;
           align-items: flex-end;
-          gap: 2px;
+          justify-content: space-between;
+          padding-right: calc(env(safe-area-inset-right, 0px) + var(--s-2));
+          touch-action: none;
           transition: opacity var(--dur-base) var(--ease-standard);
         }
-        .index.faded {
+        .scrub.hidden {
           opacity: 0;
           pointer-events: none;
         }
-        .tick {
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          width: 22px;
-          height: 14px;
-          padding: 0;
-          border: 0;
-          background: none;
-          cursor: pointer;
-          -webkit-tap-highlight-color: transparent;
-        }
-        .tick::after {
-          content: "";
-          width: 9px;
-          height: 2px;
+        .tk {
+          width: 8px;
+          height: 1.5px;
           background: var(--rule-strong);
+          border-radius: 1px;
           transition:
             width var(--dur-fast) var(--ease-standard),
             background var(--dur-fast) var(--ease-standard);
         }
-        .tick.on::after {
-          width: 18px;
+        .tk.on {
+          width: 16px;
           background: var(--ink);
         }
-        .n {
+        .scrub.active .tk {
+          width: 12px;
+        }
+        .scrub.active .tk.on {
+          width: 22px;
+        }
+        .bubble {
           position: absolute;
-          right: 24px;
-          font: var(--type-label);
-          color: var(--ink);
+          right: calc(env(safe-area-inset-right, 0px) + var(--s-5));
+          transform: translateY(-50%);
+          min-width: 40px;
+          height: 40px;
+          padding: 0 var(--s-2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: var(--ink);
+          color: var(--paper);
+          border-radius: var(--r-md);
+          font: var(--type-h3);
           opacity: 0;
           transition: opacity var(--dur-fast) var(--ease-standard);
+          pointer-events: none;
         }
-        .tick.on .n {
+        .scrub.active .bubble {
           opacity: 1;
         }
       `}</style>
