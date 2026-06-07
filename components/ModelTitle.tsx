@@ -1,27 +1,21 @@
 "use client";
 
-export type Title = { eyebrow: string; title: string; claim?: string | null };
+export type Title = { title: string; claim?: string | null };
 
-// Derive a Trixig+ design-system title from a model filename. Edit the mapping
-// here to rename what shows for each model.
+// Derive a Trixig+ design-system title from a model filename. The eyebrow is
+// just the running number (01, 02, …) — set in the component from the index.
 export function titleFor(path: string): Title {
   const name = (path.split("/").pop() ?? "").replace(/\.glb$/i, "");
-  const pad = (n: string) => n.padStart(2, "0");
-  let m: RegExpMatchArray | null;
-  if ((m = name.match(/trixig_redesign_0*(\d+)/i))) {
-    return {
-      eyebrow: `Redesign ${pad(m[1])}`,
-      title: "Trixig+",
-      claim: "Synleg. Stille. Truverdig.",
-    };
+  if (/trixig_redesign/i.test(name)) {
+    return { title: "Trixig+", claim: "Synleg. Stille. Truverdig." };
   }
-  if ((m = name.match(/gearbox_motor_0*(\d+)/i))) {
-    return { eyebrow: `Komponent ${pad(m[1])}`, title: "Girmotor", claim: null };
+  if (/gearbox_motor/i.test(name)) {
+    return { title: "Girmotor", claim: null };
   }
   if (/pcb_batteri/i.test(name)) {
-    return { eyebrow: "Komponent", title: "Krinskort + batteri", claim: null };
+    return { title: "Krinskort + batteri", claim: null };
   }
-  return { eyebrow: "Komponent", title: name.replace(/[_-]+/g, " "), claim: null };
+  return { title: name.replace(/[_-]+/g, " "), claim: null };
 }
 
 export default function ModelTitle({
@@ -38,7 +32,7 @@ export default function ModelTitle({
       {/* keyed by index so only the text content cross-fades in place — the
           block never moves, so it reads as a fixed, sturdy caption */}
       <div className="block" key={index}>
-        <p className="eyebrow">{title.eyebrow}</p>
+        <p className="eyebrow">{String(index + 1).padStart(2, "0")}</p>
         <h1 className="title">{title.title}</h1>
         {title.claim && <p className="claim">{title.claim}</p>}
       </div>
