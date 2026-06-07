@@ -28,10 +28,12 @@ export default function ModelTitle({
   title,
   index,
   visible = true,
+  onNext,
 }: {
   title: Title;
   index: number;
   visible?: boolean;
+  onNext?: () => void;
 }) {
   return (
     <div className={`wrap ${visible ? "" : "faded"}`} aria-live="polite">
@@ -42,13 +44,33 @@ export default function ModelTitle({
         {title.claim && <p className="claim">{title.claim}</p>}
       </div>
 
+      {onNext && (
+        <button
+          className="next"
+          onClick={onNext}
+          aria-label="Neste"
+          type="button"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+            <path
+              d="M6 9l6 6 6-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      )}
+
       <style jsx>{`
         .wrap {
           position: fixed;
           bottom: calc(env(safe-area-inset-bottom, 0px) + var(--s-5));
           left: calc(env(safe-area-inset-left, 0px) + var(--s-4));
           right: var(--s-4);
-          z-index: 2;
+          z-index: 3;
           pointer-events: none;
           transition: opacity var(--dur-slow) var(--ease-standard);
         }
@@ -75,6 +97,42 @@ export default function ModelTitle({
           font: var(--type-body-bold);
           color: var(--ink);
           margin: var(--s-2) 0 0;
+        }
+        .next {
+          margin-top: var(--s-3);
+          margin-left: calc(-1 * var(--s-2));
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0;
+          border: 0;
+          border-radius: var(--r-pill);
+          background: none;
+          color: var(--ink);
+          cursor: pointer;
+          pointer-events: auto;
+          -webkit-tap-highlight-color: transparent;
+          animation: hint 2.4s var(--ease-standard) infinite;
+        }
+        .next:active {
+          color: var(--ink-3);
+        }
+        @keyframes hint {
+          0%,
+          70%,
+          100% {
+            transform: translateY(0);
+          }
+          85% {
+            transform: translateY(3px);
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .next {
+            animation: none;
+          }
         }
         @keyframes enter {
           from {
