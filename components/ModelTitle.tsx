@@ -9,6 +9,9 @@ export function titleFor(path: string): Title {
   if (/trixig_redesign/i.test(name)) {
     return { title: "Trixig+", claim: "Synleg. Stille. Truverdig." };
   }
+  if (/orginal|original|trixig_parts/i.test(name)) {
+    return { title: "Trixig", claim: "Originalen" };
+  }
   if (/gearbox_motor/i.test(name)) {
     return { title: "Girmotor", claim: null };
   }
