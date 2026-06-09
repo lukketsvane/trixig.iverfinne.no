@@ -1,48 +1,127 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import Experience, {
   DragState,
   ScrollState,
+  SelectionState,
   MODEL_LEN,
+  partLabel,
 } from "@/components/Experience";
 import ModelTitle, { titleFor } from "@/components/ModelTitle";
 
-const DWELL = 0.6; // extra screens on the last model before the document
+const DWELL = 0.6; // extra screens of rest on the last model of a 3D zone
+// Scroll devoted to the original's x-ray reveal, BEFORE the model index starts
+// advancing: the model holds still (pos 0) while `breakdown` ramps 0→1 over
+// BREAKDOWN_SCREENS (shells fade to translucent), then stays x-rayed for
+// EXPLODE_HOLD more screens — a calm, full-frame window to tap parts before the
+// document rises. (HOLD must exceed 1 so at least a full screen is doc-free.)
+const BREAKDOWN_SCREENS = 1.8;
+const EXPLODE_HOLD = 2.2;
 
 export default function Gallery({
-  models,
+  pre,
+  post,
   pages,
 }: {
-  models: string[];
+  pre: string[];
+  post: string[];
   pages: string[];
 }) {
-  const count = models.length;
+  // The scene renders one continuous list; the document sits as a scroll "gap"
+  // between the pre-doc models (original + components) and the post-doc models
+  // (redesigns). countA / countC bound the two 3D zones.
+  const models = useMemo(() => [...pre, ...post], [pre, post]);
+  const countA = pre.length;
+  const countC = post.length;
+
   const drag = useRef<DragState>({ angle: 0, vel: 0 });
-  const scroll = useRef<ScrollState>({ target: 0, current: 0, pos: 0 });
+  const scroll = useRef<ScrollState>({
+    target: 0,
+    pos: 0,
+    targetBreakdown: 0,
+    breakdown: 0,
+  });
   const progressRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [inHero, setInHero] = useState(true);
 
-  const showcaseScreens = (count - 1) * MODEL_LEN + DWELL; // document begins here
+  // Tap-to-isolate selection. The ref drives the 3D loop; `picked` mirrors it to
+  // React just for the on-screen label.
+  const selection = useRef<SelectionState>({ name: null });
+  const selectAtSy = useRef(0);
+  const [picked, setPicked] = useState<string | null>(null);
+  const selectPart = (name: string | null) => {
+    selection.current.name = name;
+    if (name) selectAtSy.current = window.scrollY;
+    setPicked(name);
+  };
+
+  // Scroll room (in screens) for each 3D zone: one MODEL_LEN per gap between
+  // models, plus a dwell so the last one rests before/after the document.
+  const aScreens =
+    BREAKDOWN_SCREENS + Math.max(0, countA - 1) * MODEL_LEN + EXPLODE_HOLD;
+  const cScreens = Math.max(0, countC - 1) * MODEL_LEN + DWELL;
+
+  const docRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    const clamp = (v: number, lo: number, hi: number) =>
+      Math.min(hi, Math.max(lo, v));
+
     const onScroll = () => {
       const vh = window.innerHeight;
-      const S = window.scrollY / vh;
-      scroll.current.target = S;
+      const sY = window.scrollY;
+      const doc = docRef.current;
+      const docTop = doc ? doc.offsetTop : aScreens * vh;
+      const docH = doc ? doc.offsetHeight : 0;
+      const cStart = docTop + docH; // redesigns take over once the doc clears
 
-      const idx = Math.round(Math.min(count - 1, Math.max(0, S / MODEL_LEN)));
+      let pos: number;
+      let hero: boolean;
+      let bd = 1; // teardown progress (only meaningful while the original shows)
+      if (sY <= docTop) {
+        // Zone A: the original's teardown, then original → components.
+        const bScroll = BREAKDOWN_SCREENS * vh;
+        if (sY < bScroll) {
+          // Hold on the original (pos 0) and run the multi-step breakdown.
+          pos = 0;
+          bd = sY / bScroll;
+        } else {
+          pos = clamp((sY - bScroll) / vh / MODEL_LEN, 0, countA - 1);
+          bd = 1;
+        }
+        hero = sY < docTop - 0.5 * vh;
+      } else if (sY >= cStart) {
+        // Zone C: redesigns.
+        pos = countA + clamp((sY - cStart) / vh / MODEL_LEN, 0, countC - 1);
+        hero = true;
+      } else {
+        // Document zone. Ramp from the last component to the first redesign over
+        // the first half-screen — entirely hidden behind the opaque pages — then
+        // hold on the redesign. That way the redesign (not the battery
+        // component) is what's revealed as the last page scrolls clear.
+        const ramp = clamp((sY - docTop) / (0.5 * vh), 0, 1);
+        pos = countA - 1 + ramp;
+        hero = false;
+      }
+      scroll.current.target = pos;
+      scroll.current.targetBreakdown = bd;
+      // Scrolling away (or collapsing the teardown) releases any isolated part.
+      if (
+        selection.current.name &&
+        (bd < 0.5 || Math.abs(sY - selectAtSy.current) > 60)
+      )
+        selectPart(null);
+
+      const idx = Math.round(pos);
       setActive((p) => (p === idx ? p : idx));
-
-      // title shows over the showcase; hide it as the document slides up
-      const hero = S < showcaseScreens - 0.5;
       setInHero((p) => (p === hero ? p : hero));
 
       const max = document.documentElement.scrollHeight - vh;
       if (progressRef.current) {
-        progressRef.current.style.transform = `scaleX(${max > 0 ? window.scrollY / max : 0})`;
+        progressRef.current.style.transform = `scaleX(${max > 0 ? sY / max : 0})`;
       }
     };
     onScroll();
@@ -52,7 +131,7 @@ export default function Gallery({
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, [count, showcaseScreens]);
+  }, [countA, countC, aScreens]);
 
   // iOS Safari's bottom toolbar overlaps fixed bottom content; measure it so the
   // title can sit just above it.
@@ -75,33 +154,45 @@ export default function Gallery({
     };
   }, []);
 
-  // Smooth scroll + drag in a rAF loop so coarse iOS scroll becomes continuous.
+  // Smooth the model position + drag in a rAF loop so coarse iOS scroll becomes
+  // continuous.
   useEffect(() => {
     let raf = 0;
     const loop = () => {
       const s = scroll.current;
-      s.current += (s.target - s.current) * 0.1;
-      s.pos = Math.min(count - 1, Math.max(0, s.current / MODEL_LEN));
+      s.pos += (s.target - s.pos) * 0.1;
+      s.breakdown += (s.targetBreakdown - s.breakdown) * 0.1;
       drag.current.angle += drag.current.vel;
       drag.current.vel *= 0.9;
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [count]);
+  }, []);
 
   // Horizontal drag spins the model; `touch-action: pan-y` lets vertical
-  // swipes scroll the page natively.
+  // swipes scroll the page natively. We also track whether the pointer moved
+  // past a small threshold, so Experience can tell a part-tap from a spin-drag.
   const dragging = useRef(false);
   const lastX = useRef(0);
+  const downX = useRef(0);
+  const downY = useRef(0);
+  const didDrag = useRef(false);
   const onPointerDown = (e: React.PointerEvent) => {
     dragging.current = true;
     lastX.current = e.clientX;
+    downX.current = e.clientX;
+    downY.current = e.clientY;
+    didDrag.current = false;
   };
   const onPointerMove = (e: React.PointerEvent) => {
     if (!dragging.current) return;
     drag.current.vel = (e.clientX - lastX.current) * 0.006;
     lastX.current = e.clientX;
+    if (
+      Math.hypot(e.clientX - downX.current, e.clientY - downY.current) > 6
+    )
+      didDrag.current = true;
   };
   const endDrag = () => {
     dragging.current = false;
@@ -110,7 +201,6 @@ export default function Gallery({
   // ---- document page scrubber (iOS-native feel) ----
   const pageEls = useRef<(HTMLImageElement | null)[]>([]);
   const stripRef = useRef<HTMLDivElement>(null);
-  const docRef = useRef<HTMLElement>(null);
   const scrubbing = useRef(false);
   const pageRef = useRef(0);
   const [page, setPage] = useState(0);
@@ -139,16 +229,16 @@ export default function Gallery({
     return () => obs.disconnect();
   }, [pages.length]);
 
-  // Continuous, proportional scrub: the finger position maps across the whole
-  // document so scrolling follows the finger smoothly (no page-snapping jumps).
+  // Continuous, proportional scrub: the finger maps across the document only
+  // (docTop → its last page), so the redesigns that follow are never scrubbed.
   const scrubTo = (clientY: number) => {
     const r = stripRef.current?.getBoundingClientRect();
     const doc = docRef.current;
     if (!r || !doc) return;
     const f = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
     const docTop = doc.offsetTop;
-    const docEnd = document.documentElement.scrollHeight - window.innerHeight;
-    window.scrollTo(0, docTop + f * (docEnd - docTop));
+    const docEnd = docTop + doc.offsetHeight - window.innerHeight;
+    window.scrollTo(0, docTop + f * Math.max(0, docEnd - docTop));
     const i = Math.round(f * (pages.length - 1));
     pageRef.current = i;
     setPage(i);
@@ -187,9 +277,20 @@ export default function Gallery({
         draggable={false}
       />
 
-      {count > 0 && (
-        <ModelTitle title={titleFor(models[active])} index={active} visible={inHero} />
+      {models.length > 0 && (
+        <ModelTitle
+          title={titleFor(models[active])}
+          index={active}
+          visible={inHero && !picked}
+        />
       )}
+
+      {/* Isolated-part caption (replaces the model title while a part is held) */}
+      <div className={`partlabel ${picked ? "" : "hidden"}`} aria-live="polite">
+        <p className="pl-eyebrow">Del</p>
+        <h2 className="pl-name">{picked ? partLabel(picked) : ""}</h2>
+        <p className="pl-hint">Trykk for å lukke</p>
+      </div>
 
       {/* fixed canvas; the document scrolls up over it (no fade) */}
       <div
@@ -207,16 +308,28 @@ export default function Gallery({
           performance={{ min: 0.5 }}
           frameloop="always"
           shadows
+          onPointerMissed={() => {
+            // Tap on empty space (not a drag) releases the isolated part.
+            if (!didDrag.current) selectPart(null);
+          }}
         >
-          <Experience models={models} drag={drag} scroll={scroll} />
+          <Experience
+            models={models}
+            drag={drag}
+            scroll={scroll}
+            selection={selection}
+            didDrag={didDrag}
+            onSelect={selectPart}
+          />
         </Canvas>
       </div>
 
-      <div className="spacer" style={{ height: `${showcaseScreens * 100}dvh` }} />
+      {/* Zone A scroll room (original + components) */}
+      <div className="spacer" style={{ height: `${aScreens * 100}dvh` }} />
 
       {pages.length > 0 && (
         <>
-          <section className="doc" ref={docRef}>
+          <section className={`doc ${picked ? "dimmed" : ""}`} ref={docRef}>
             {pages.map((src, i) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -235,7 +348,7 @@ export default function Gallery({
           </section>
 
           <div
-            className={`scrub ${inHero ? "hidden" : ""} ${scrub ? "active" : ""}`}
+            className={`scrub ${inHero || picked ? "hidden" : ""} ${scrub ? "active" : ""}`}
             ref={stripRef}
             onPointerDown={scrubDown}
             onPointerMove={scrubMove}
@@ -261,6 +374,9 @@ export default function Gallery({
           </div>
         </>
       )}
+
+      {/* Zone C scroll room (redesigns), after the document */}
+      <div className="spacer" style={{ height: `${cScreens * 100}dvh` }} />
 
       <style jsx>{`
         .progress {
@@ -290,6 +406,38 @@ export default function Gallery({
         .logo.faded {
           opacity: 0;
         }
+        .partlabel {
+          position: fixed;
+          bottom: calc(
+            env(safe-area-inset-bottom, 0px) + var(--vv-bottom, 0px) + var(--s-5)
+          );
+          left: calc(env(safe-area-inset-left, 0px) + var(--s-4));
+          right: var(--s-4);
+          z-index: 3;
+          pointer-events: none;
+          transition: opacity var(--dur-base) var(--ease-standard);
+        }
+        .partlabel.hidden {
+          opacity: 0;
+        }
+        .pl-eyebrow {
+          font: var(--type-label);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--fg3);
+          margin: 0 0 var(--s-2);
+        }
+        .pl-name {
+          font: var(--type-h1);
+          letter-spacing: -0.01em;
+          color: var(--ink);
+          margin: 0;
+        }
+        .pl-hint {
+          font: var(--type-label);
+          color: var(--fg3);
+          margin: var(--s-2) 0 0;
+        }
         .stage {
           position: fixed;
           inset: 0;
@@ -314,6 +462,13 @@ export default function Gallery({
           align-items: center;
           gap: var(--s-2);
           padding: var(--s-2) var(--s-2) calc(env(safe-area-inset-bottom, 0px) + var(--s-6));
+          transition: opacity var(--dur-base) var(--ease-standard);
+        }
+        /* While a part is isolated the teardown is a focused mode — clear the
+           document out from behind the canvas so nothing intrudes. */
+        .doc.dimmed {
+          opacity: 0;
+          pointer-events: none;
         }
         .page {
           width: 100%;

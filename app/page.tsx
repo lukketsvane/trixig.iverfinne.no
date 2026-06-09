@@ -17,7 +17,15 @@ function listDir(sub: string, ext: string) {
 }
 
 export default function Home() {
-  return (
-    <Gallery models={listDir("models", ".glb")} pages={listDir("pages", ".jpg")} />
-  );
+  const all = listDir("models", ".glb");
+  const redesigns = all.filter((m) => /trixig_redesign/i.test(m));
+
+  // Section A (before the document): just the original Trixig, split into named
+  // parts. It breaks apart on scroll and each internal (motor, pcb, battery) is
+  // isolated by tapping it — so the old standalone component models are gone.
+  const pre = ["/trixig_parts.glb"];
+  // Section C (after the document): the redesigns.
+  const post = redesigns;
+
+  return <Gallery pre={pre} post={post} pages={listDir("pages", ".jpg")} />;
 }
