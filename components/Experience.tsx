@@ -22,7 +22,7 @@ function framingFor(url: string): Framing {
     // Frame tight on the screwdriver body; the thread runs off-frame.
     return { zoom: 1.5, robust: true, keep: 0.8 };
   }
-  if (/trixig_redesign/i.test(url)) return { zoom: 1.18, robust: false, keep: 1 };
+  if (/trixig_redesign/i.test(url)) return { zoom: 1.0, robust: false, keep: 1 };
   return { zoom: 0.92, robust: false, keep: 1 };
 }
 
@@ -120,6 +120,11 @@ const SEL_DIM = 0.08;
 // Radians a model spins per unit of scroll (i.e. per model scrolled through).
 // Higher = more turntable motion while scrolling.
 const SCROLL_SPIN = 2.0;
+// Extra gentle turn tied directly to RAW page scroll (radians per viewport
+// scrolled). Model-index spin only moves while crossing between models; a model
+// resting alone in a short zone (e.g. a single redesign) wouldn't react to
+// scroll at all without this. Keeps the product feeling alive on every swipe.
+const SCROLL_TILT = 0.28;
 // Global starting angle so the first model opens at a flattering 3/4 view;
 // applied to every model, so the continuous spin is unaffected.
 const SPIN_PHASE = -0.7;
@@ -405,7 +410,12 @@ function Model({
     // each one picks up exactly where the previous left off — one continuous
     // turntable across the whole scroll. Horizontal drag adds on top.
     const scrollSpin = SPIN_PHASE + pos * SCROLL_SPIN;
-    g.rotation.set(rx, drag.current.angle + ry + scrollSpin, rz);
+    // Raw-scroll turn on top, so vertical scrolling always nudges the model —
+    // even when `pos` is parked on a single model in a short zone.
+    const vh = (typeof window !== "undefined" && window.innerHeight) || 1;
+    const scrollTilt =
+      ((typeof window !== "undefined" ? window.scrollY : 0) / vh) * SCROLL_TILT;
+    g.rotation.set(rx, drag.current.angle + ry + scrollSpin + scrollTilt, rz);
     // slight scale pop so the swap reads as motion, not a blink
     const s = 0.94 + 0.06 * opacity;
     g.scale.setScalar(s);

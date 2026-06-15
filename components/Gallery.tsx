@@ -11,7 +11,12 @@ import Experience, {
 } from "@/components/Experience";
 import ModelTitle, { titleFor } from "@/components/ModelTitle";
 
-const DWELL = 0.6; // extra screens of rest on the last model of a 3D zone
+const DWELL = 0.8; // extra screens of rest on the last model of a 3D zone
+// Screens reserved AFTER the document for the redesigns to take over: enough to
+// let the last document page scroll fully clear so the first redesign settles
+// dead-centre (not half-hidden behind the page). Without this, a short zone C
+// (e.g. a single redesign) can never be scrolled past the document at all.
+const REVEAL_C = 1.2;
 // Scroll devoted to the original's x-ray reveal, BEFORE the model index starts
 // advancing: the model holds still (pos 0) while `breakdown` ramps 0→1 over
 // BREAKDOWN_SCREENS (shells fade to translucent), then stays x-rayed for
@@ -62,7 +67,7 @@ export default function Gallery({
   // models, plus a dwell so the last one rests before/after the document.
   const aScreens =
     BREAKDOWN_SCREENS + Math.max(0, countA - 1) * MODEL_LEN + EXPLODE_HOLD;
-  const cScreens = Math.max(0, countC - 1) * MODEL_LEN + DWELL;
+  const cScreens = REVEAL_C + Math.max(0, countC - 1) * MODEL_LEN + DWELL;
 
   const docRef = useRef<HTMLElement>(null);
 
@@ -482,6 +487,12 @@ export default function Gallery({
           user-select: none;
           -webkit-user-select: none;
           -webkit-touch-callout: none;
+          /* Pin the fixed WebGL canvas to its own stable compositing layer so
+             iOS doesn't briefly drop it (showing it behind the document) during
+             fast programmatic scroll/scrub. */
+          transform: translateZ(0);
+          -webkit-backface-visibility: hidden;
+          backface-visibility: hidden;
         }
         .stage:active {
           cursor: grabbing;
@@ -493,6 +504,9 @@ export default function Gallery({
           position: relative;
           z-index: 2;
           background: var(--grey-100);
+          /* Own layer + opaque backdrop so the canvas never shows through the
+             page gaps while scrolling/scrubbing over it. */
+          transform: translateZ(0);
           display: flex;
           flex-direction: column;
           align-items: center;
