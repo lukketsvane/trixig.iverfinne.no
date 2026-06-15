@@ -205,7 +205,13 @@ export default function Gallery({
   const pageRef = useRef(0);
   const [page, setPage] = useState(0);
   const [scrub, setScrub] = useState(false);
-  const [thumb, setThumb] = useState(0); // 0..1 finger position while scrubbing
+  // During a scrub the bubble + tick highlight are driven straight through the
+  // DOM (no React state per move) and the scroll is coalesced into one write per
+  // frame — otherwise iOS re-renders the whole gallery ~60×/s and flickers.
+  const bubbleRef = useRef<HTMLSpanElement>(null);
+  const tickRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const rafScrub = useRef(0);
+  const pendingY = useRef(0);
 
   useEffect(() => {
     if (!pages.length) return;
@@ -231,6 +237,9 @@ export default function Gallery({
 
   // Continuous, proportional scrub: the finger maps across the document only
   // (docTop → its last page), so the redesigns that follow are never scrubbed.
+  // Everything here is ref/DOM-driven so a drag triggers no React re-render —
+  // the scroll write is coalesced into a single rAF per frame to stop iOS from
+  // fighting the gesture (the cause of the flicker).
   const scrubTo = (clientY: number) => {
     const r = stripRef.current?.getBoundingClientRect();
     const doc = docRef.current;
@@ -238,11 +247,24 @@ export default function Gallery({
     const f = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
     const docTop = doc.offsetTop;
     const docEnd = docTop + doc.offsetHeight - window.innerHeight;
-    window.scrollTo(0, docTop + f * Math.max(0, docEnd - docTop));
+    pendingY.current = docTop + f * Math.max(0, docEnd - docTop);
+    if (!rafScrub.current) {
+      rafScrub.current = requestAnimationFrame(() => {
+        rafScrub.current = 0;
+        window.scrollTo(0, pendingY.current);
+      });
+    }
     const i = Math.round(f * (pages.length - 1));
     pageRef.current = i;
-    setPage(i);
-    setThumb(f);
+    // Move the bubble + repaint the active tick directly — no setState.
+    const b = bubbleRef.current;
+    if (b) {
+      b.style.top = `${f * 100}%`;
+      b.textContent = String(i + 1);
+    }
+    const ticks = tickRefs.current;
+    for (let t = 0; t < ticks.length; t++)
+      ticks[t]?.classList.toggle("on", t === i);
   };
   const scrubDown = (e: React.PointerEvent) => {
     scrubbing.current = true;
@@ -253,10 +275,16 @@ export default function Gallery({
   const scrubMove = (e: React.PointerEvent) => {
     if (scrubbing.current) scrubTo(e.clientY);
   };
-  // on release, settle smoothly onto the nearest page
+  // on release, settle smoothly onto the nearest page and re-sync React state
   const scrubUp = () => {
+    if (!scrubbing.current) return;
     scrubbing.current = false;
+    if (rafScrub.current) {
+      cancelAnimationFrame(rafScrub.current);
+      rafScrub.current = 0;
+    }
     setScrub(false);
+    setPage(pageRef.current);
     const el = pageEls.current[pageRef.current];
     if (el)
       window.scrollTo({
@@ -348,7 +376,7 @@ export default function Gallery({
           </section>
 
           <div
-            className={`scrub ${inHero || picked ? "hidden" : ""} ${scrub ? "active" : ""}`}
+            className={`scrub ${(inHero || picked) && !scrub ? "hidden" : ""} ${scrub ? "active" : ""}`}
             ref={stripRef}
             onPointerDown={scrubDown}
             onPointerMove={scrubMove}
@@ -361,13 +389,18 @@ export default function Gallery({
             aria-valuemax={pages.length}
           >
             {pages.map((_, i) => (
-              <span key={i} className={`tk ${i === page ? "on" : ""}`} />
+              <span
+                key={i}
+                ref={(el) => {
+                  tickRefs.current[i] = el;
+                }}
+                className={`tk ${i === page ? "on" : ""}`}
+              />
             ))}
             <span
+              ref={bubbleRef}
               className="bubble"
-              style={{
-                top: `${(scrub ? thumb : page / (pages.length - 1)) * 100}%`,
-              }}
+              style={{ top: `${(page / (pages.length - 1)) * 100}%` }}
             >
               {page + 1}
             </span>
@@ -446,6 +479,9 @@ export default function Gallery({
           z-index: 1;
           touch-action: pan-y;
           cursor: grab;
+          user-select: none;
+          -webkit-user-select: none;
+          -webkit-touch-callout: none;
         }
         .stage:active {
           cursor: grabbing;
@@ -476,6 +512,10 @@ export default function Gallery({
           height: auto;
           display: block;
           border: 1px solid var(--rule);
+          user-select: none;
+          -webkit-user-select: none;
+          -webkit-touch-callout: none;
+          -webkit-user-drag: none;
         }
 
         /* ---- iOS-style page scrubber ---- */
@@ -493,6 +533,9 @@ export default function Gallery({
           justify-content: space-between;
           padding-right: calc(env(safe-area-inset-right, 0px) + var(--s-2));
           touch-action: none;
+          user-select: none;
+          -webkit-user-select: none;
+          -webkit-touch-callout: none;
           transition: opacity var(--dur-base) var(--ease-standard);
         }
         .scrub.hidden {
@@ -533,7 +576,10 @@ export default function Gallery({
           border-radius: var(--r-md);
           font: var(--type-h3);
           opacity: 0;
+          /* top is written straight from the finger position during a scrub, so
+             it must not transition — only the fade in/out animates */
           transition: opacity var(--dur-fast) var(--ease-standard);
+          will-change: top;
           pointer-events: none;
         }
         .scrub.active .bubble {
