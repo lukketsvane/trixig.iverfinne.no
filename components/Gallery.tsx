@@ -20,6 +20,11 @@ const DWELL = 0.6; // extra screens of rest on the last model of a 3D zone
 const BREAKDOWN_SCREENS = 1.8;
 const EXPLODE_HOLD = 2.2;
 
+// Detect mobile once at module load (client-only, "use client" guarantees this).
+const isMobile =
+  typeof navigator !== "undefined" &&
+  /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
 export default function Gallery({
   pre,
   post,
@@ -363,11 +368,23 @@ export default function Gallery({
       >
         <Canvas
           camera={{ position: [0, 0, 8], fov: 35 }}
-          dpr={[1, 2]}
-          gl={{ antialias: true, powerPreference: "high-performance" }}
+          dpr={isMobile ? [1, 1] : [1, 1.5]}
+          gl={{
+            antialias: !isMobile,
+            powerPreference: isMobile ? "default" : "high-performance",
+            failIfMajorPerformanceCaveat: false,
+          }}
           performance={{ min: 0.5 }}
           frameloop="always"
-          shadows
+          onCreated={({ gl }) => {
+            // Prevent iOS from crashing the whole page on WebGL context loss;
+            // the canvas goes blank but the page stays alive.
+            gl.domElement.addEventListener(
+              "webglcontextlost",
+              (e) => e.preventDefault(),
+              false,
+            );
+          }}
           onPointerMissed={() => {
             // Tap on empty space (not a drag) releases the isolated part.
             if (!didDrag.current) selectPart(null);
