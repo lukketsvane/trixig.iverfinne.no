@@ -1,8 +1,18 @@
 /* =========================================================================
-   IKEA Trixig+ design tokens — from the design-system bundle
-   (colors_and_type.css). Fonts point at the bundled Noto IKEA files.
+   IKEA Trixig+ Design System — full token set.
+   Mirrors the design-system bundle (colors_and_type.css): brand + Trixig
+   sub-brand palette, neutrals, secondary palette, semantic roles, the flat
+   type scale, 4-base spacing, soft radii, sparing elevation, and motion.
+   Fonts point at the bundled Noto IKEA files (Regular/Italic/Bold/BoldItalic).
+
+   Dark theme lives at the bottom: it re-themes the neutral primitives so every
+   semantic token follows. `[data-theme]` (set pre-paint by the inline script in
+   layout.tsx, toggled at runtime by useTheme) is authoritative; the media query
+   is the no-JS fallback. The 3D scene background + lighting are themed in
+   Experience.tsx off the same `dark` flag.
    ========================================================================= */
 
+/* ---------- Fonts: Noto IKEA (Verdana is the documented historical proxy) ---------- */
 @font-face {
   font-family: "Noto IKEA";
   src: url("/fonts/NotoIKEA-Regular.ttf") format("truetype");
@@ -12,18 +22,32 @@
 }
 @font-face {
   font-family: "Noto IKEA";
+  src: url("/fonts/NotoIKEA-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Noto IKEA";
   src: url("/fonts/NotoIKEA-Bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
+@font-face {
+  font-family: "Noto IKEA";
+  src: url("/fonts/NotoIKEA-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
 
 :root {
-  /* Brand — reserved for the logo only */
+  /* ===== Brand colours — RESERVED for the logo / store façades only ===== */
   --ikea-blue: #0058a3;
   --ikea-yellow: #fbd914;
 
-  /* Trixig sub-brand: matte black + one light-blue accent */
+  /* ===== Trixig sub-brand: matte black ABS + one light-blue accent ===== */
   --trixig-black: #1a1a1a;
   --trixig-black-soft: #2b2b2b;
   --trixig-black-edge: #0e0e0e;
@@ -31,7 +55,7 @@
   --trixig-blue-deep: #8ab4cc;
   --trixig-blue-pale: #d4e4ee;
 
-  /* Neutrals */
+  /* ===== Neutrals ===== */
   --paper: #ffffff;
   --paper-warm: #faf7f2;
   --ink: #111111;
@@ -44,21 +68,33 @@
   --grey-200: #e0e0e0;
   --grey-700: #424242;
 
-  /* Semantic */
+  /* ===== Secondary palette (surfaces only, never with the logo) ===== */
+  --bold-yellow: #ffdb00;
+  --bold-red: #e52a2a;
+  --bold-magenta: #c8158c;
+  --bold-orange: #ff7a00;
+  --bold-green: #2e8540;
+  --bold-cyan: #5fa8d3;
+  --bold-indigo: #1f2d5c;
+
+  /* ===== Semantic ===== */
   --bg: var(--paper);
   --bg-warm: var(--paper-warm);
+  --bg-instr: var(--bold-yellow); /* assembly-drawing background */
   --fg1: var(--ink);
   --fg2: var(--ink-2);
   --fg3: var(--ink-3);
   --fg-on-dark: #ffffff;
+  --fg-on-instr: var(--ikea-blue); /* blue line drawings on yellow */
   --accent: var(--trixig-blue);
   --accent-deep: var(--trixig-blue-deep);
   --surface-product: var(--trixig-black);
   --border: var(--rule);
   --border-strong: var(--rule-strong);
 
-  /* Type */
+  /* ===== Type ===== */
   --font-sans: "Noto IKEA", Verdana, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
   --type-display: 700 64px/1.05 var(--font-sans);
   --type-h1: 700 40px/1.1 var(--font-sans);
   --type-h2: 700 28px/1.2 var(--font-sans);
@@ -68,9 +104,10 @@
   --type-body-bold: 700 16px/1.5 var(--font-sans);
   --type-small: 400 14px/1.45 var(--font-sans);
   --type-caption: 400 12px/1.4 var(--font-sans);
-  --type-label: 700 12px/1.2 var(--font-sans);
+  --type-label: 700 12px/1.2 var(--font-sans); /* uppercase eyebrow */
+  --type-quote: 500 24px/1.35 var(--font-sans);
 
-  /* Spacing (4-base) */
+  /* ===== Spacing (4-base) ===== */
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
@@ -81,18 +118,76 @@
   --s-8: 64px;
   --s-9: 96px;
 
-  /* Radii */
+  /* ===== Radii (R5–R8 soft) ===== */
   --r-sm: 4px;
   --r-md: 8px;
   --r-lg: 16px;
   --r-pill: 999px;
 
-  /* Motion */
+  /* ===== Elevation (flat brand — use sparingly) ===== */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.1);
+  --shadow-deboss: inset 0 1px 2px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.04);
+
+  /* ===== Motion ===== */
   --ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --dur-fast: 120ms;
   --dur-base: 200ms;
   --dur-slow: 320ms;
+
+  color-scheme: light;
+}
+
+/* =========================================================================
+   Dark theme — Trixig's matte-black sub-brand becomes the page surface.
+   Only the neutral primitives are redefined; the semantic tokens reference
+   them, so everything follows. `[data-theme="dark"]` is authoritative; the
+   media query only applies when no explicit data-theme has been set (no-JS).
+   ========================================================================= */
+:root[data-theme="dark"] {
+  --paper: #141414;
+  --paper-warm: #17130d;
+  --ink: #f2f2f2;
+  --ink-2: #b6b6b6;
+  --ink-3: #888888;
+  --rule: #2a2a2a;
+  --rule-strong: #3d3d3d;
+  --grey-50: #1b1b1b;
+  --grey-100: #141414;
+  --grey-200: #1f1f1f;
+  --grey-700: #d0d0d0;
+  --surface-product: #0c0c0c;
+
+  /* Elevation reads as a darker well on near-black rather than a soft shadow. */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.7);
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --paper: #141414;
+    --paper-warm: #17130d;
+    --ink: #f2f2f2;
+    --ink-2: #b6b6b6;
+    --ink-3: #888888;
+    --rule: #2a2a2a;
+    --rule-strong: #3d3d3d;
+    --grey-50: #1b1b1b;
+    --grey-100: #141414;
+    --grey-200: #1f1f1f;
+    --grey-700: #d0d0d0;
+    --surface-product: #0c0c0c;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.6);
+    --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.7);
+    color-scheme: dark;
+  }
 }
 
 * {
@@ -103,15 +198,47 @@
 
 html,
 body {
-  /* light grey is on-brand ("Lys grå er ok") and lets white pages separate */
+  /* light grey is on-brand ("Lys grå er ok") and lets white pages separate;
+     in dark it resolves to near-black via the --grey-100 override above. */
   background: var(--grey-100);
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-base) var(--ease-standard);
 }
 
 body {
   font: var(--type-body);
-  color: var(--ink);
+  color: var(--fg1);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* ---------- Design-system helper classes (parity with the bundle) ---------- */
+.display {
+  font: var(--type-display);
+  letter-spacing: -0.02em;
+}
+.lead {
+  font: var(--type-lead);
+  color: var(--fg2);
+}
+.eyebrow {
+  font: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg2);
+}
+.caption {
+  font: var(--type-caption);
+  color: var(--fg3);
+}
+code,
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+/* "When IKEA appears in running text it's CAPS, same size + font as around." */
+.brand-ikea {
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
