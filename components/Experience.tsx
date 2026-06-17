@@ -224,7 +224,7 @@ export type ScrollState = {
 };
 
 // How many screens of scroll each model occupies (a longer, calmer read).
-export const MODEL_LEN = 2.8;
+export const MODEL_LEN = 1.4;
 
 // One selectable part: its node and the mesh(es) under it (for opacity/depth).
 // Nothing moves, so no displacement data is needed.
