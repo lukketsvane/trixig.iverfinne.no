@@ -22,8 +22,20 @@ function framingFor(url: string): Framing {
     // Frame tight on the screwdriver body; the thread runs off-frame.
     return { zoom: 1.5, robust: true, keep: 0.8 };
   }
+  // concept_06 (gallery #11) ends in a thin dangling hook; framing/grounding on
+  // the full AABB anchors its base at the hook tip, so the body floats. Frame on
+  // the dense body only (discard the farthest 18% of verts) so it sits grounded.
+  if (/concept_06/i.test(url)) return { zoom: 1.18, robust: true, keep: 0.82 };
   if (/trixig_redesign/i.test(url)) return { zoom: 1.18, robust: false, keep: 1 };
   return { zoom: 0.92, robust: false, keep: 1 };
+}
+
+// Per-model vertical nudge (world units, applied to the model group after
+// scaling). Positive lifts the model up in frame while the ground shadow stays
+// put — so the model reads as floating higher above the ground.
+function liftFor(url: string): number {
+  if (/concept_04/i.test(url)) return 0.4; // #09: raise it off the ground
+  return 0;
 }
 
 // Bounding center/size computed from the dense vertex cloud, ignoring the
@@ -128,6 +140,9 @@ const SPIN_PHASE = -0.7;
 // the scroll-driven spin stays continuous from one model to the next.
 function poseFor(url: string): [number, number, number] {
   if (/gearbox_motor/i.test(url)) return [-0.32, 0, 0.06];
+  // #09 (concept_04): turn it to a clearer 3/4 so you can read the tool, with a
+  // slight nose-up tilt. ry offsets this model's resting angle only.
+  if (/concept_04/i.test(url)) return [-0.12, 0.6, 0];
   return [0, 0, 0];
 }
 
@@ -406,6 +421,7 @@ function Model({
     // turntable across the whole scroll. Horizontal drag adds on top.
     const scrollSpin = SPIN_PHASE + pos * SCROLL_SPIN;
     g.rotation.set(rx, drag.current.angle + ry + scrollSpin, rz);
+    g.position.y = liftFor(url); // per-model vertical nudge (shadow stays put)
     // slight scale pop so the swap reads as motion, not a blink
     const s = 0.94 + 0.06 * opacity;
     g.scale.setScalar(s);
