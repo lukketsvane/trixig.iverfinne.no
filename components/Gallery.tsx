@@ -12,6 +12,11 @@ import Experience, {
 // Extra screens of rest on the last model so it settles before the page ends.
 const DWELL = 0.6;
 
+// Detect mobile once at module load so Canvas quality is tuned before first render.
+const isMobile =
+  typeof navigator !== "undefined" &&
+  /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
 // A clean vertical scroll-through of finished 3D models — one model per screen,
 // crossfading from one to the next. Drag horizontally to spin. The model list
 // is whatever sits in public/assets (see app/page.tsx).
@@ -155,11 +160,21 @@ export default function Gallery({ models }: { models: string[] }) {
       >
         <Canvas
           camera={{ position: [0, 0, 8], fov: 35 }}
-          dpr={[1, 1.5]}
-          gl={{ antialias: true, powerPreference: "high-performance" }}
+          dpr={isMobile ? [1, 1] : [1, 1.5]}
+          gl={{
+            antialias: !isMobile,
+            powerPreference: isMobile ? "default" : "high-performance",
+            failIfMajorPerformanceCaveat: false,
+          }}
           performance={{ min: 0.5 }}
           frameloop="always"
-          shadows
+          onCreated={({ gl }) => {
+            gl.domElement.addEventListener(
+              "webglcontextlost",
+              (e) => e.preventDefault(),
+              false,
+            );
+          }}
         >
           {count > 0 && (
             <Experience
