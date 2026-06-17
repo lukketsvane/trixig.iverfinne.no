@@ -165,21 +165,38 @@ function poseFor(url: string): [number, number, number] {
   return [0, 0, 0];
 }
 
-// Subtle studio backdrop tones around --grey-100 (matches the document field
-// so the hero hands off seamlessly); shifts roughly every 3 models.
-const BG = ["#eeeeee", "#f1ece5", "#e7edf0", "#edefe9"].map(
+// Subtle studio backdrop tones. Light: around --grey-100 (matches the document
+// field so the hero hands off seamlessly). Dark: near-black around the Trixig
+// matte-black surface (--paper #141414), with the same faint warm/cool drift.
+// Both shift roughly every 3 models.
+const BG_LIGHT = ["#eeeeee", "#f1ece5", "#e7edf0", "#edefe9"].map(
+  (h) => new THREE.Color(h),
+);
+const BG_DARK = ["#141414", "#16130e", "#101316", "#131510"].map(
   (h) => new THREE.Color(h),
 );
 const _bg = new THREE.Color();
-function bgAt(t: number) {
+function bgAt(t: number, dark: boolean) {
+  const pal = dark ? BG_DARK : BG_LIGHT;
   const seg = t / 3;
   const i = Math.floor(seg);
   let f = seg - i;
   f = f * f * (3 - 2 * f); // smoothstep
   return _bg
-    .copy(BG[((i % BG.length) + BG.length) % BG.length])
-    .lerp(BG[(((i + 1) % BG.length) + BG.length) % BG.length], f);
+    .copy(pal[((i % pal.length) + pal.length) % pal.length])
+    .lerp(pal[(((i + 1) % pal.length) + pal.length) % pal.length], f);
 }
+
+// --- Light direction (three-finger pan) ---
+// The key directional light is steered by azimuth/elevation (radians) rather
+// than a fixed position, so a three-finger drag can swing it around the model.
+// Defaults reproduce the original [3, 5, 4] key light.
+export type LightState = { az: number; el: number };
+export const LIGHT_RADIUS = 7;
+export const LIGHT_DEFAULT: LightState = {
+  az: Math.atan2(3, 4), // ≈ 0.64
+  el: Math.atan2(5, Math.hypot(3, 4)), // ≈ 0.79
+};
 
 // Pull the camera back so a unit-radius sphere fits on the limiting axis
 // (width on a portrait phone), with margin. Keeps every model — tall or wide —
@@ -554,6 +571,8 @@ export default function Experience({
   selection,
   didDrag,
   onSelect,
+  dark,
+  light,
 }: {
   models: string[];
   active: number;
@@ -562,14 +581,17 @@ export default function Experience({
   selection: React.MutableRefObject<SelectionState>;
   didDrag: React.MutableRefObject<boolean>;
   onSelect: (name: string | null) => void;
+  dark: boolean;
+  light: React.MutableRefObject<LightState>;
 }) {
   const bottoms = useRef<number[]>([]);
   const shadow = useRef<THREE.Group>(null);
+  const keyLight = useRef<THREE.DirectionalLight>(null);
   const scene = useThree((s) => s.scene);
 
   useEffect(() => {
-    scene.background = new THREE.Color("#eeeeee");
-  }, [scene]);
+    scene.background = bgAt(scroll.current.pos, dark).clone();
+  }, [scene, dark, scroll]);
 
   // Preload only the next model (not the previous) so the upcoming transition is
   // smooth without filling the cache with all models simultaneously. On mobile
@@ -584,7 +606,18 @@ export default function Experience({
     const pos = scroll.current.pos;
 
     if (scene.background instanceof THREE.Color) {
-      scene.background.copy(bgAt(pos));
+      scene.background.copy(bgAt(pos, dark));
+    }
+
+    // Steer the key light from the (three-finger-pan-driven) azimuth/elevation.
+    if (keyLight.current) {
+      const { az, el } = light.current;
+      const cosEl = Math.cos(el);
+      keyLight.current.position.set(
+        LIGHT_RADIUS * cosEl * Math.sin(az),
+        LIGHT_RADIUS * Math.sin(el),
+        LIGHT_RADIUS * cosEl * Math.cos(az),
+      );
     }
 
     // ground plane sits a touch below the active model's base, so the model
@@ -603,9 +636,16 @@ export default function Experience({
   return (
     <>
       <Rig />
-      <Environment preset="studio" environmentIntensity={0.9} />
-      <directionalLight position={[3, 5, 4]} intensity={1.1} />
-      <ambientLight intensity={0.25} />
+      {/* Dark mode dims the ambient image-based fill and leans on the steerable
+          key light, so the matte-black product keeps form and the three-finger
+          relight reads clearly. */}
+      <Environment preset="studio" environmentIntensity={dark ? 0.45 : 0.9} />
+      <directionalLight
+        ref={keyLight}
+        position={[3, 5, 4]}
+        intensity={dark ? 1.4 : 1.1}
+      />
+      <ambientLight intensity={dark ? 0.12 : 0.25} />
 
       {models.map((url, i) =>
         Math.abs(i - active) <= MOUNT_RADIUS ? (
@@ -626,7 +666,7 @@ export default function Experience({
 
       <group ref={shadow} position={[0, -1.05, 0]}>
         <ContactShadows
-          opacity={0.22}
+          opacity={dark ? 0.5 : 0.22}
           blur={2}
           far={3}
           scale={5}
