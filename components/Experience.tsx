@@ -27,7 +27,8 @@ function framingFor(url: string): Framing {
   // the dense body only (discard the farthest 18% of verts) so it sits grounded.
   if (/concept_06/i.test(url)) return { zoom: 1.18, robust: true, keep: 0.82 };
   if (/trixig_redesign/i.test(url)) return { zoom: 1.18, robust: false, keep: 1 };
-  return { zoom: 0.92, robust: false, keep: 1 };
+  // Default for the scroll-through asset gallery — a comfortable product frame.
+  return { zoom: 1.15, robust: false, keep: 1 };
 }
 
 // Per-model vertical nudge (world units, applied to the model group after
