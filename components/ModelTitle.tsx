@@ -34,18 +34,13 @@ export default function ModelTitle({
   title,
   number,
   visible = true,
-  dark = false,
 }: {
   title: Title;
   number: string;
   visible?: boolean;
-  dark?: boolean;
 }) {
   return (
-    <div
-      className={`wrap ${visible ? "" : "faded"} ${dark ? "on-dark" : ""}`}
-      aria-live="polite"
-    >
+    <div className={`wrap ${visible ? "" : "faded"}`} aria-live="polite">
       {/* keyed by number so only the text content cross-fades in place — the
           block never moves, so it reads as a fixed, sturdy caption */}
       <div className="block" key={number}>
@@ -69,15 +64,6 @@ export default function ModelTitle({
         }
         .wrap.faded {
           opacity: 0;
-        }
-        /* On the dark (IKEA-blue) sections, flip the caption to white so it
-           stays legible against the fill. */
-        .wrap.on-dark .eyebrow {
-          color: rgba(255, 255, 255, 0.75);
-        }
-        .wrap.on-dark .title,
-        .wrap.on-dark .claim {
-          color: #ffffff;
         }
         .block {
           animation: fadein var(--dur-base) var(--ease-standard) both;

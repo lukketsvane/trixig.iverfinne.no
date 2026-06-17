@@ -106,11 +106,12 @@ function robustBounds(root: THREE.Object3D, keep: number) {
 // now isolated in-place (no separate floating component models), so every model
 // in the sequence — the original and the redesigns — sits grounded.
 function shadowGapFor(url: string) {
-  // concept_05 (Trixig 5, the docked screwdriver) must sit flat on the floor —
-  // no hover. Drop the shadow right under it (slight overlap = firm contact).
-  if (/concept_05/i.test(url)) return -0.04;
+  // Gap between a model's base and its ground shadow — larger = ground sits
+  // further below the model. concept_05 (the mounted/docked Trixig) wants the
+  // ground dropped well clear of its base.
+  if (/concept_05/i.test(url)) return 0.5;
   if (/concept_09/i.test(url)) return -0.02;
-  return 0.1;
+  return 0.22;
 }
 
 // --- Multi-step exploded "breakdown" view (the split-parts original only) ---
@@ -127,6 +128,19 @@ function shadowGapFor(url: string) {
 // part HIGHLIGHTS it (full opacity) while everything else dims to a faint ghost.
 const SHELL = new Set(["Body_Front", "Body_Back"]);
 const INTERNALS = new Set(["motor", "pcb_mainboard", "battery"]);
+
+// --- Rotatable-joint animation (the pre-segmented concept_13) ---
+// The model arrives split into ~13 parts with generic Tripo names, so we target
+// the moving piece by id. JOINT_PART is the bit/chuck at the working end; it
+// turns steadily around the tool's drive axis (Y) — a calm "it works" motion.
+// To retarget, change JOINT_PART (and JOINT_AXIS if it spins on x/z instead).
+const JOINT_MODEL = /concept_13/i;
+const JOINT_PART = "tripo_part_27";
+const JOINT_AXIS: "x" | "y" | "z" = "y";
+const JOINT_SPEED = 6; // radians per second
+// Parts to drop on the segmented model — the dangling thread/strap reads as
+// clutter next to the joint, so it's removed before framing (model re-centres).
+const HIDE_PARTS = ["tripo_part_10"];
 
 // Shell opacity at full x-ray (see the guts through the housing).
 const SHELL_XRAY = 0.14;
@@ -150,25 +164,20 @@ function poseFor(url: string): [number, number, number] {
   return [0, 0, 0];
 }
 
-// IKEA brand fills (official): blue #0058a3 (Pantone 7455 C) and yellow #fbd914
-// (Pantone 107 C). Product sections are bold IKEA colour blocks that alternate
-// blue / yellow per model. Blue is dark (white captions); yellow is light (ink
-// captions) — see sectionIsDark, which Gallery reads to flip the caption colour.
-const IKEA_BLUE = "#0058a3";
-const IKEA_YELLOW = "#fbd914";
-const _blue = new THREE.Color(IKEA_BLUE);
-const _yellow = new THREE.Color(IKEA_YELLOW);
-// Fill colour is fixed PER MODEL (not by sequence index), so reordering models
-// keeps each one's colour. Yellow (light) sections: concept_02, 07, 14. Every
-// other model (the original, concept_05, concept_13, …) takes the blue fill.
-export function sectionIsDark(url: string) {
-  return !/concept_02|concept_07|concept_14/i.test(url);
-}
-// Snap the backdrop to the active model's colour (blue↔yellow lerps muddy
-// through green, so we flip cleanly at the crossover, where the models are
-// already swapping). The result reads as a deliberate IKEA colour-block change.
-function bgFor(url: string) {
-  return sectionIsDark(url) ? _blue : _yellow;
+// Subtle studio backdrop tones around --grey-100 (matches the document field
+// so the hero hands off seamlessly); shifts roughly every 3 models.
+const BG = ["#eeeeee", "#f1ece5", "#e7edf0", "#edefe9"].map(
+  (h) => new THREE.Color(h),
+);
+const _bg = new THREE.Color();
+function bgAt(t: number) {
+  const seg = t / 3;
+  const i = Math.floor(seg);
+  let f = seg - i;
+  f = f * f * (3 - 2 * f); // smoothstep
+  return _bg
+    .copy(BG[((i % BG.length) + BG.length) % BG.length])
+    .lerp(BG[(((i + 1) % BG.length) + BG.length) % BG.length], f);
 }
 
 // Pull the camera back so a unit-radius sphere fits on the limiting axis
@@ -211,15 +220,6 @@ type ExplodePart = {
   meshes: THREE.Mesh[];
 };
 
-// One animated part of the featured exploded view (concept_13): its node, rest
-// position, and the radial direction it eases out along.
-type ExplodeBit = {
-  node: THREE.Object3D;
-  base: THREE.Vector3;
-  dir: THREE.Vector3;
-};
-// Seconds for one assemble → explode → hold → reassemble showcase cycle.
-const EXPLODE_PERIOD = 7;
 
 // Which part (if any) the user has tapped to isolate. A ref so the rAF loop can
 // read it without re-rendering; Gallery also mirrors it to state for the label.
@@ -248,6 +248,12 @@ function useNormalized(url: string, framing: Framing) {
   const { scene } = useGLTF(url, true);
   return useMemo(() => {
     const root = scene.clone(true);
+
+    // Drop hidden parts (e.g. the strap on concept_13) before anything else so
+    // they're not drawn and don't pull on the framing / shadow.
+    if (JOINT_MODEL.test(url)) {
+      for (const name of HIDE_PARTS) root.getObjectByName(name)?.removeFromParent();
+    }
 
     // Pick the framing volume.
     let center: THREE.Vector3;
@@ -369,36 +375,15 @@ function useNormalized(url: string, framing: Framing) {
       });
     });
 
-    // --- Featured exploded view (concept_13 only) ---
-    // This model ships pre-segmented into ~13 named parts. Record each part's
-    // rest position and a radial "explode" direction (model centre → part
-    // centre) so the Model loop can ease them apart and back as a showcase.
-    const explodeBits: ExplodeBit[] = [];
-    let explodeAmp = 0;
-    if (/concept_13/i.test(url)) {
-      wrapper.updateWorldMatrix(true, true);
-      const origin = new THREE.Vector3();
-      wrapper.getWorldPosition(origin);
-      const pc = new THREE.Vector3();
-      const pq = new THREE.Quaternion();
-      const tmpBox = new THREE.Box3();
+    // Grab the rotatable-joint node (concept_13) so the Model loop can turn it.
+    let joint: THREE.Object3D | null = null;
+    if (JOINT_MODEL.test(url)) {
       root.traverse((o) => {
-        if (!/tripo_part/i.test(o.name)) return;
-        tmpBox.setFromObject(o);
-        if (tmpBox.isEmpty()) return;
-        tmpBox.getCenter(pc);
-        const dir = pc.sub(origin); // world-space direction from centre
-        if (dir.lengthSq() < 1e-8) dir.set(0, 1, 0);
-        dir.normalize();
-        // express in the part's parent-local frame (rotation only)
-        (o.parent ?? wrapper).getWorldQuaternion(pq).invert();
-        dir.applyQuaternion(pq);
-        explodeBits.push({ node: o, base: o.position.clone(), dir });
+        if (o.name === JOINT_PART) joint = o;
       });
-      explodeAmp = radius * 0.85; // push distance in root (pre-scale) units
     }
 
-    return { object: wrapper, bottomY, parts, meshToPart, explodeBits, explodeAmp };
+    return { object: wrapper, bottomY, parts, meshToPart, joint };
   }, [scene, url, framing.robust, framing.keep, framing.zoom]);
 }
 
@@ -424,8 +409,10 @@ function Model({
   onSelect: (name: string | null) => void;
 }) {
   const group = useRef<THREE.Group>(null);
-  const { object, bottomY, parts, meshToPart, explodeBits, explodeAmp } =
-    useNormalized(url, framingFor(url));
+  const { object, bottomY, parts, meshToPart, joint } = useNormalized(
+    url,
+    framingFor(url),
+  );
   const focus = useRef(0); // smoothed highlight amount (0 none, 1 a part is held)
 
   useEffect(() => {
@@ -462,29 +449,8 @@ function Model({
     g.visible = visible;
     if (!visible) return;
 
-    // Featured exploded view (concept_13): ease the segmented parts radially out
-    // and back on a slow showcase loop — assemble, explode, hold, reassemble.
-    if (explodeBits.length) {
-      const u = (state.clock.elapsedTime % EXPLODE_PERIOD) / EXPLODE_PERIOD;
-      let e: number;
-      if (u < 0.15) e = 0;
-      else if (u < 0.45) {
-        const k = (u - 0.15) / 0.3;
-        e = k * k * (3 - 2 * k);
-      } else if (u < 0.6) e = 1;
-      else if (u < 0.9) {
-        const k = 1 - (u - 0.6) / 0.3;
-        e = k * k * (3 - 2 * k);
-      } else e = 0;
-      const dist = e * explodeAmp;
-      for (const b of explodeBits) {
-        b.node.position.set(
-          b.base.x + b.dir.x * dist,
-          b.base.y + b.dir.y * dist,
-          b.base.z + b.dir.z * dist,
-        );
-      }
-    }
+    // Rotatable joint (concept_13): turn the targeted part around its axis.
+    if (joint) joint.rotation[JOINT_AXIS] = state.clock.elapsedTime * JOINT_SPEED;
 
     const [rx, ry, rz] = poseFor(url);
     // Global (not per-index) scroll spin: every model reads the same angle, so
@@ -581,7 +547,7 @@ export default function Experience({
   const scene = useThree((s) => s.scene);
 
   useEffect(() => {
-    scene.background = new THREE.Color(IKEA_BLUE);
+    scene.background = new THREE.Color("#eeeeee");
     models.forEach((m) => useGLTF.preload(m, true));
   }, [models, scene]);
 
@@ -591,7 +557,7 @@ export default function Experience({
     const pos = scroll.current.pos;
 
     if (scene.background instanceof THREE.Color) {
-      scene.background.copy(bgFor(models[Math.round(pos)] ?? ""));
+      scene.background.copy(bgAt(pos));
     }
 
     // ground plane sits a touch below the active model's base, so the model

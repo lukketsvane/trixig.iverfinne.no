@@ -32,13 +32,7 @@ export default function Home() {
   // Curated five (picked by eye for quality + variety of form): a pistol-grip
   // power tool, a docked screwdriver, a sleek looped screwdriver, a compact
   // drill, and a carabiner-loop tool.
-  const SHOW = [
-    "concept_05",
-    "concept_02",
-    "concept_07",
-    "concept_13",
-    "concept_14",
-  ];
+  const SHOW = ["concept_05", "concept_02", "concept_07", "concept_14"];
   const post = SHOW.map((k) => redesigns.find((m) => m.includes(k))).filter(
     (m): m is string => Boolean(m),
   );
