@@ -47,6 +47,12 @@ export default function Gallery({
   const stageRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [inHero, setInHero] = useState(true);
+  // Clamp the active index to the current model list — the list can shrink (a
+  // model removed) while `active` state lingers at a now-out-of-range value, and
+  // models[active] === undefined would otherwise crash titleFor/numberFor.
+  const activeIdx = models.length
+    ? Math.min(Math.max(active, 0), models.length - 1)
+    : 0;
 
   // Tap-to-isolate selection. The ref drives the 3D loop; `picked` mirrors it to
   // React just for the on-screen label.
@@ -328,8 +334,8 @@ export default function Gallery({
 
       {models.length > 0 && (
         <ModelTitle
-          title={titleFor(models[active])}
-          number={numberFor(models[active])}
+          title={titleFor(models[activeIdx])}
+          number={numberFor(models[activeIdx])}
           visible={inHero && !picked}
         />
       )}
@@ -369,6 +375,7 @@ export default function Gallery({
         >
           <Experience
             models={models}
+            active={activeIdx}
             drag={drag}
             scroll={scroll}
             selection={selection}

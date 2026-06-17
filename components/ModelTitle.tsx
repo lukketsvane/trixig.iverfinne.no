@@ -5,16 +5,16 @@ export type Title = { title: string; claim?: string | null };
 // The eyebrow number is taken from the model's filename (e.g.
 // trixig_redesign_concept_10 → "10") so the on-screen number always matches the
 // GLB it belongs to, regardless of how many models are in the sequence.
-export function numberFor(path: string): string {
-  const name = (path.split("/").pop() ?? "").replace(/\.glb$/i, "");
+export function numberFor(path: string | undefined): string {
+  const name = ((path ?? "").split("/").pop() ?? "").replace(/\.glb$/i, "");
   const m = name.match(/(\d+)(?!.*\d)/); // last run of digits in the name
   return m ? m[1].padStart(2, "0") : "01"; // unnumbered (the original) → 01
 }
 
 // Derive a Trixig+ design-system title from a model filename. The eyebrow is
 // just the running number (01, 02, …) — set in the component from the index.
-export function titleFor(path: string): Title {
-  const name = (path.split("/").pop() ?? "").replace(/\.glb$/i, "");
+export function titleFor(path: string | undefined): Title {
+  const name = ((path ?? "").split("/").pop() ?? "").replace(/\.glb$/i, "");
   if (/trixig_redesign/i.test(name)) {
     return { title: "Trixig+", claim: "Synleg. Stille. Truverdig." };
   }

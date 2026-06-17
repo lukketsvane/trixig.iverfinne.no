@@ -376,12 +376,9 @@ function useNormalized(url: string, framing: Framing) {
     });
 
     // Grab the rotatable-joint node (concept_13) so the Model loop can turn it.
-    let joint: THREE.Object3D | null = null;
-    if (JOINT_MODEL.test(url)) {
-      root.traverse((o) => {
-        if (o.name === JOINT_PART) joint = o;
-      });
-    }
+    const joint: THREE.Object3D | null = JOINT_MODEL.test(url)
+      ? (root.getObjectByName(JOINT_PART) ?? null)
+      : null;
 
     return { object: wrapper, bottomY, parts, meshToPart, joint };
   }, [scene, url, framing.robust, framing.keep, framing.zoom]);
@@ -527,8 +524,15 @@ function Model({
   );
 }
 
+// How many models on each side of the active one are kept mounted. Only these
+// have their (heavy, ~1M-vert) geometry decoded + uploaded to the GPU; the rest
+// are unmounted so mobile doesn't run out of memory. ±1 keeps the neighbours
+// ready so transitions never pop, while never holding more than three at once.
+const MOUNT_RADIUS = 1;
+
 export default function Experience({
   models,
+  active,
   drag,
   scroll,
   selection,
@@ -536,6 +540,7 @@ export default function Experience({
   onSelect,
 }: {
   models: string[];
+  active: number;
   drag: React.MutableRefObject<DragState>;
   scroll: React.MutableRefObject<ScrollState>;
   selection: React.MutableRefObject<SelectionState>;
@@ -548,8 +553,15 @@ export default function Experience({
 
   useEffect(() => {
     scene.background = new THREE.Color("#eeeeee");
-    models.forEach((m) => useGLTF.preload(m, true));
-  }, [models, scene]);
+  }, [scene]);
+
+  // Warm just the immediate neighbours (decode happens once, then cached) so the
+  // next model is ready by the time it scrolls in — without preloading the set.
+  useEffect(() => {
+    for (let i = active - 1; i <= active + 1; i++) {
+      if (models[i]) useGLTF.preload(models[i], true);
+    }
+  }, [models, active]);
 
   // Scroll smoothing + the DOM crossfade live in Gallery's rAF loop; here we
   // only read scroll.current.pos (already smoothed) to drive the 3D scene.
@@ -580,20 +592,22 @@ export default function Experience({
       <directionalLight position={[3, 5, 4]} intensity={1.1} />
       <ambientLight intensity={0.25} />
 
-      {models.map((url, i) => (
-        <Model
-          key={url}
-          url={url}
-          index={i}
-          drag={drag}
-          scroll={scroll}
-          renderOrder={i}
-          bottoms={bottoms}
-          selection={selection}
-          didDrag={didDrag}
-          onSelect={onSelect}
-        />
-      ))}
+      {models.map((url, i) =>
+        Math.abs(i - active) <= MOUNT_RADIUS ? (
+          <Model
+            key={url}
+            url={url}
+            index={i}
+            drag={drag}
+            scroll={scroll}
+            renderOrder={i}
+            bottoms={bottoms}
+            selection={selection}
+            didDrag={didDrag}
+            onSelect={onSelect}
+          />
+        ) : null,
+      )}
 
       <group ref={shadow} position={[0, -1.05, 0]}>
         <ContactShadows
