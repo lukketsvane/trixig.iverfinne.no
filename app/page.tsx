@@ -26,16 +26,18 @@ export default function Home() {
   const pre = ["/trixig_parts.glb"];
   // Section C (after the document): the redesigns.
   //
-  // INTERIM: show only three concepts while we sort out mobile load perf — all
-  // ~1.1M-vert concepts mounted at once exhausts the WebGL context on iPhone.
-  // Edit this list to swap which three appear (matched against the filename).
-  // Curated five (picked by eye for quality + variety of form): a pistol-grip
-  // power tool, a docked screwdriver, a sleek looped screwdriver, a compact
-  // drill, and a carabiner-loop tool.
-  const SHOW = ["concept_05", "concept_02", "concept_07", "concept_14"];
-  const post = SHOW.map((k) => redesigns.find((m) => m.includes(k))).filter(
-    (m): m is string => Boolean(m),
-  );
+  // Prefer the lightweight v2 series (1.4–1.5 MB each, half the size of the
+  // concept files) to stay within iOS WebGL memory limits. If v2 models are
+  // present they are shown in filename order; otherwise fall back to a curated
+  // selection of the concept series.
+  const v2 = redesigns.filter((m) => /v2_/i.test(m)).sort();
+  const FALLBACK = ["concept_05", "concept_02", "concept_07", "concept_14"];
+  const post =
+    v2.length >= 2
+      ? v2
+      : FALLBACK.map((k) => redesigns.find((m) => m.includes(k))).filter(
+          (m): m is string => Boolean(m),
+        );
 
   return <Gallery pre={pre} post={post} pages={listDir("pages", ".jpg")} />;
 }

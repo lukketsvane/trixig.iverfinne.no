@@ -416,6 +416,21 @@ function Model({
     bottoms.current[index] = bottomY;
   }, [bottoms, index, bottomY]);
 
+  // Dispose cloned materials when this model unmounts so GPU memory is freed.
+  // Geometries and textures stay in the useGLTF cache (shared), only materials
+  // explicitly cloned in useNormalized (trixig_parts path) are ours to dispose.
+  useEffect(() => {
+    return () => {
+      if (!parts.length) return;
+      object.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        mats.forEach((m) => (m as THREE.Material)?.dispose());
+      });
+    };
+  }, [object, parts]);
+
   // Tap a part (once the x-ray has revealed the guts, and it wasn't a drag) to
   // highlight it; tap again to release. Only the split-parts model has parts.
   const onClick = (e: { object: THREE.Object3D; stopPropagation: () => void }) => {
@@ -555,12 +570,11 @@ export default function Experience({
     scene.background = new THREE.Color("#eeeeee");
   }, [scene]);
 
-  // Warm just the immediate neighbours (decode happens once, then cached) so the
-  // next model is ready by the time it scrolls in — without preloading the set.
+  // Preload only the next model (not the previous) so the upcoming transition is
+  // smooth without filling the cache with all models simultaneously. On mobile
+  // every MB in the useGLTF cache stays resident, so we limit warming to +1.
   useEffect(() => {
-    for (let i = active - 1; i <= active + 1; i++) {
-      if (models[i]) useGLTF.preload(models[i], true);
-    }
+    if (models[active + 1]) useGLTF.preload(models[active + 1], true);
   }, [models, active]);
 
   // Scroll smoothing + the DOM crossfade live in Gallery's rAF loop; here we
@@ -611,11 +625,11 @@ export default function Experience({
 
       <group ref={shadow} position={[0, -1.05, 0]}>
         <ContactShadows
-          opacity={0.26}
-          blur={3.4}
-          far={4}
-          scale={7}
-          resolution={512}
+          opacity={0.22}
+          blur={2}
+          far={3}
+          scale={5}
+          resolution={256}
           color="#000000"
         />
       </group>
