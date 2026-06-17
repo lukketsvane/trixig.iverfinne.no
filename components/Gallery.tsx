@@ -8,8 +8,9 @@ import Experience, {
   SelectionState,
   MODEL_LEN,
   partLabel,
+  sectionIsDark,
 } from "@/components/Experience";
-import ModelTitle, { titleFor } from "@/components/ModelTitle";
+import ModelTitle, { titleFor, numberFor } from "@/components/ModelTitle";
 
 const DWELL = 0.6; // extra screens of rest on the last model of a 3D zone
 // Scroll devoted to the original's x-ray reveal, BEFORE the model index starts
@@ -44,6 +45,7 @@ export default function Gallery({
     breakdown: 0,
   });
   const progressRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [inHero, setInHero] = useState(true);
 
@@ -122,6 +124,21 @@ export default function Gallery({
       const max = document.documentElement.scrollHeight - vh;
       if (progressRef.current) {
         progressRef.current.style.transform = `scaleX(${max > 0 ? sY / max : 0})`;
+      }
+
+      // Hide the 3D canvas while the document is the active content so no model
+      // peeks out from under the PDF pages. It fades out right after the doc
+      // takes over and fades the first redesign back in just before zone C.
+      let stageOp = 1;
+      if (doc && sY > docTop && sY < cStart) {
+        const fadeOut = docTop + 0.35 * vh; // gone shortly after entering the doc
+        const fadeIn = cStart - 0.85 * vh; // reappear just before the redesigns
+        if (sY < fadeOut) stageOp = 1 - (sY - docTop) / (0.35 * vh);
+        else if (sY < fadeIn) stageOp = 0;
+        else stageOp = (sY - fadeIn) / (cStart - fadeIn);
+      }
+      if (stageRef.current) {
+        stageRef.current.style.opacity = String(clamp(stageOp, 0, 1));
       }
     };
     onScroll();
@@ -205,6 +222,11 @@ export default function Gallery({
   const pageRef = useRef(0);
   const [page, setPage] = useState(0);
   const [scrub, setScrub] = useState(false);
+
+  // The PDF runs many pages; show only a short preview so the document doesn't
+  // eat a huge stretch of scroll (no expander — the rest is intentionally cut).
+  const PREVIEW_PAGES = 2;
+  const shownPages = pages.slice(0, PREVIEW_PAGES);
   // During a scrub the bubble + tick highlight are driven straight through the
   // DOM (no React state per move) and the scroll is coalesced into one write per
   // frame — otherwise iOS re-renders the whole gallery ~60×/s and flickers.
@@ -214,8 +236,8 @@ export default function Gallery({
   const pendingY = useRef(0);
 
   useEffect(() => {
-    if (!pages.length) return;
-    const ratios: number[] = new Array(pages.length).fill(0);
+    if (!shownPages.length) return;
+    const ratios: number[] = new Array(shownPages.length).fill(0);
     const obs = new IntersectionObserver(
       (entries) => {
         if (scrubbing.current) return;
@@ -233,7 +255,7 @@ export default function Gallery({
     );
     pageEls.current.forEach((el) => el && obs.observe(el));
     return () => obs.disconnect();
-  }, [pages.length]);
+  }, [shownPages.length]);
 
   // Continuous, proportional scrub: the finger maps across the document only
   // (docTop → its last page), so the redesigns that follow are never scrubbed.
@@ -308,21 +330,27 @@ export default function Gallery({
       {models.length > 0 && (
         <ModelTitle
           title={titleFor(models[active])}
-          index={active}
+          number={numberFor(models[active])}
           visible={inHero && !picked}
+          dark={sectionIsDark(models[active] ?? "")}
         />
       )}
 
       {/* Isolated-part caption (replaces the model title while a part is held) */}
-      <div className={`partlabel ${picked ? "" : "hidden"}`} aria-live="polite">
+      <div
+        className={`partlabel ${picked ? "" : "hidden"} ${sectionIsDark(models[active] ?? "") ? "on-dark" : ""}`}
+        aria-live="polite"
+      >
         <p className="pl-eyebrow">Del</p>
         <h2 className="pl-name">{picked ? partLabel(picked) : ""}</h2>
         <p className="pl-hint">Trykk for å lukke</p>
       </div>
 
-      {/* fixed canvas; the document scrolls up over it (no fade) */}
+      {/* fixed canvas; the document scrolls up over it, and the canvas fades
+          out while the PDF is the active content (see onScroll) */}
       <div
         className="stage"
+        ref={stageRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -358,7 +386,7 @@ export default function Gallery({
       {pages.length > 0 && (
         <>
           <section className={`doc ${picked ? "dimmed" : ""}`} ref={docRef}>
-            {pages.map((src, i) => (
+            {shownPages.map((src, i) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={src}
@@ -373,10 +401,11 @@ export default function Gallery({
                 decoding="async"
               />
             ))}
+
           </section>
 
           <div
-            className={`scrub ${(inHero || picked) && !scrub ? "hidden" : ""} ${scrub ? "active" : ""}`}
+            className={`scrub hidden`}
             ref={stripRef}
             onPointerDown={scrubDown}
             onPointerMove={scrubMove}
@@ -419,7 +448,7 @@ export default function Gallery({
           width: 100%;
           height: 3px;
           z-index: 5;
-          background: var(--trixig-blue);
+          background: var(--ikea-yellow);
           transform: scaleX(0);
           transform-origin: left center;
           will-change: transform;
@@ -470,6 +499,14 @@ export default function Gallery({
           font: var(--type-label);
           color: var(--fg3);
           margin: var(--s-2) 0 0;
+        }
+        /* White part caption on the dark IKEA-blue teardown section. */
+        .partlabel.on-dark .pl-eyebrow,
+        .partlabel.on-dark .pl-hint {
+          color: rgba(255, 255, 255, 0.75);
+        }
+        .partlabel.on-dark .pl-name {
+          color: #ffffff;
         }
         .stage {
           position: fixed;

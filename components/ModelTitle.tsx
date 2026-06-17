@@ -2,6 +2,15 @@
 
 export type Title = { title: string; claim?: string | null };
 
+// The eyebrow number is taken from the model's filename (e.g.
+// trixig_redesign_concept_10 → "10") so the on-screen number always matches the
+// GLB it belongs to, regardless of how many models are in the sequence.
+export function numberFor(path: string): string {
+  const name = (path.split("/").pop() ?? "").replace(/\.glb$/i, "");
+  const m = name.match(/(\d+)(?!.*\d)/); // last run of digits in the name
+  return m ? m[1].padStart(2, "0") : "01"; // unnumbered (the original) → 01
+}
+
 // Derive a Trixig+ design-system title from a model filename. The eyebrow is
 // just the running number (01, 02, …) — set in the component from the index.
 export function titleFor(path: string): Title {
@@ -23,19 +32,24 @@ export function titleFor(path: string): Title {
 
 export default function ModelTitle({
   title,
-  index,
+  number,
   visible = true,
+  dark = false,
 }: {
   title: Title;
-  index: number;
+  number: string;
   visible?: boolean;
+  dark?: boolean;
 }) {
   return (
-    <div className={`wrap ${visible ? "" : "faded"}`} aria-live="polite">
-      {/* keyed by index so only the text content cross-fades in place — the
+    <div
+      className={`wrap ${visible ? "" : "faded"} ${dark ? "on-dark" : ""}`}
+      aria-live="polite"
+    >
+      {/* keyed by number so only the text content cross-fades in place — the
           block never moves, so it reads as a fixed, sturdy caption */}
-      <div className="block" key={index}>
-        <p className="eyebrow">{String(index + 1).padStart(2, "0")}</p>
+      <div className="block" key={number}>
+        <p className="eyebrow">{number}</p>
         <h1 className="title">{title.title}</h1>
         {title.claim && <p className="claim">{title.claim}</p>}
       </div>
@@ -55,6 +69,15 @@ export default function ModelTitle({
         }
         .wrap.faded {
           opacity: 0;
+        }
+        /* On the dark (IKEA-blue) sections, flip the caption to white so it
+           stays legible against the fill. */
+        .wrap.on-dark .eyebrow {
+          color: rgba(255, 255, 255, 0.75);
+        }
+        .wrap.on-dark .title,
+        .wrap.on-dark .claim {
+          color: #ffffff;
         }
         .block {
           animation: fadein var(--dur-base) var(--ease-standard) both;
