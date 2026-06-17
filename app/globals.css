@@ -5,11 +5,10 @@
    type scale, 4-base spacing, soft radii, sparing elevation, and motion.
    Fonts point at the bundled Noto IKEA files (Regular/Italic/Bold/BoldItalic).
 
-   Dark theme lives at the bottom: it re-themes the neutral primitives so every
-   semantic token follows. `[data-theme]` (set pre-paint by the inline script in
-   layout.tsx, toggled at runtime by useTheme) is authoritative; the media query
-   is the no-JS fallback. The 3D scene background + lighting are themed in
-   Experience.tsx off the same `dark` flag.
+   The site is light only — IKEA's surfaces are white / light grey. The matte
+   black is reserved for the Trixig product itself (--surface-product), never the
+   page field. `--fg-on-dark` is the text colour for the few elements that sit on
+   that product surface, not a page theme.
    ========================================================================= */
 
 /* ---------- Fonts: Noto IKEA (Verdana is the documented historical proxy) ---------- */
@@ -141,55 +140,6 @@
   color-scheme: light;
 }
 
-/* =========================================================================
-   Dark theme — Trixig's matte-black sub-brand becomes the page surface.
-   Only the neutral primitives are redefined; the semantic tokens reference
-   them, so everything follows. `[data-theme="dark"]` is authoritative; the
-   media query only applies when no explicit data-theme has been set (no-JS).
-   ========================================================================= */
-:root[data-theme="dark"] {
-  --paper: #141414;
-  --paper-warm: #17130d;
-  --ink: #f2f2f2;
-  --ink-2: #b6b6b6;
-  --ink-3: #888888;
-  --rule: #2a2a2a;
-  --rule-strong: #3d3d3d;
-  --grey-50: #1b1b1b;
-  --grey-100: #141414;
-  --grey-200: #1f1f1f;
-  --grey-700: #d0d0d0;
-  --surface-product: #0c0c0c;
-
-  /* Elevation reads as a darker well on near-black rather than a soft shadow. */
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.6);
-  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.7);
-
-  color-scheme: dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --paper: #141414;
-    --paper-warm: #17130d;
-    --ink: #f2f2f2;
-    --ink-2: #b6b6b6;
-    --ink-3: #888888;
-    --rule: #2a2a2a;
-    --rule-strong: #3d3d3d;
-    --grey-50: #1b1b1b;
-    --grey-100: #141414;
-    --grey-200: #1f1f1f;
-    --grey-700: #d0d0d0;
-    --surface-product: #0c0c0c;
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
-    --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.6);
-    --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.7);
-    color-scheme: dark;
-  }
-}
-
 * {
   margin: 0;
   padding: 0;
@@ -198,8 +148,7 @@
 
 html,
 body {
-  /* light grey is on-brand ("Lys grå er ok") and lets white pages separate;
-     in dark it resolves to near-black via the --grey-100 override above. */
+  /* light grey is on-brand ("Lys grå er ok") and lets white pages separate. */
   background: var(--grey-100);
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;

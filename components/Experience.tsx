@@ -165,19 +165,15 @@ function poseFor(url: string): [number, number, number] {
   return [0, 0, 0];
 }
 
-// Subtle studio backdrop tones. Light: around --grey-100 (matches the document
-// field so the hero hands off seamlessly). Dark: near-black around the Trixig
-// matte-black surface (--paper #141414), with the same faint warm/cool drift.
-// Both shift roughly every 3 models.
+// Subtle studio backdrop tones, around --grey-100 — matches the document field
+// so the hero hands off seamlessly, with a faint warm/cool drift that shifts
+// roughly every 3 models.
 const BG_LIGHT = ["#eeeeee", "#f1ece5", "#e7edf0", "#edefe9"].map(
   (h) => new THREE.Color(h),
 );
-const BG_DARK = ["#141414", "#16130e", "#101316", "#131510"].map(
-  (h) => new THREE.Color(h),
-);
 const _bg = new THREE.Color();
-function bgAt(t: number, dark: boolean) {
-  const pal = dark ? BG_DARK : BG_LIGHT;
+function bgAt(t: number) {
+  const pal = BG_LIGHT;
   const seg = t / 3;
   const i = Math.floor(seg);
   let f = seg - i;
@@ -228,7 +224,7 @@ export type ScrollState = {
 };
 
 // How many screens of scroll each model occupies (a longer, calmer read).
-export const MODEL_LEN = 1.4;
+export const MODEL_LEN = 2.8;
 
 // One selectable part: its node and the mesh(es) under it (for opacity/depth).
 // Nothing moves, so no displacement data is needed.
@@ -571,7 +567,6 @@ export default function Experience({
   selection,
   didDrag,
   onSelect,
-  dark,
   light,
 }: {
   models: string[];
@@ -581,7 +576,6 @@ export default function Experience({
   selection: React.MutableRefObject<SelectionState>;
   didDrag: React.MutableRefObject<boolean>;
   onSelect: (name: string | null) => void;
-  dark: boolean;
   light: React.MutableRefObject<LightState>;
 }) {
   const bottoms = useRef<number[]>([]);
@@ -590,8 +584,8 @@ export default function Experience({
   const scene = useThree((s) => s.scene);
 
   useEffect(() => {
-    scene.background = bgAt(scroll.current.pos, dark).clone();
-  }, [scene, dark, scroll]);
+    scene.background = bgAt(scroll.current.pos).clone();
+  }, [scene, scroll]);
 
   // Preload only the next model (not the previous) so the upcoming transition is
   // smooth without filling the cache with all models simultaneously. On mobile
@@ -606,7 +600,7 @@ export default function Experience({
     const pos = scroll.current.pos;
 
     if (scene.background instanceof THREE.Color) {
-      scene.background.copy(bgAt(pos, dark));
+      scene.background.copy(bgAt(pos));
     }
 
     // Steer the key light from the (three-finger-pan-driven) azimuth/elevation.
@@ -636,16 +630,9 @@ export default function Experience({
   return (
     <>
       <Rig />
-      {/* Dark mode dims the ambient image-based fill and leans on the steerable
-          key light, so the matte-black product keeps form and the three-finger
-          relight reads clearly. */}
-      <Environment preset="studio" environmentIntensity={dark ? 0.45 : 0.9} />
-      <directionalLight
-        ref={keyLight}
-        position={[3, 5, 4]}
-        intensity={dark ? 1.4 : 1.1}
-      />
-      <ambientLight intensity={dark ? 0.12 : 0.25} />
+      <Environment preset="studio" environmentIntensity={0.9} />
+      <directionalLight ref={keyLight} position={[3, 5, 4]} intensity={1.1} />
+      <ambientLight intensity={0.25} />
 
       {models.map((url, i) =>
         Math.abs(i - active) <= MOUNT_RADIUS ? (
@@ -666,7 +653,7 @@ export default function Experience({
 
       <group ref={shadow} position={[0, -1.05, 0]}>
         <ContactShadows
-          opacity={dark ? 0.5 : 0.22}
+          opacity={0.22}
           blur={2}
           far={3}
           scale={5}
