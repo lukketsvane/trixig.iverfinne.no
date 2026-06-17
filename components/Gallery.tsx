@@ -6,8 +6,11 @@ import Experience, {
   DragState,
   ScrollState,
   SelectionState,
+  LightState,
+  LIGHT_DEFAULT,
   MODEL_LEN,
 } from "@/components/Experience";
+import { useTheme } from "@/components/useTheme";
 
 // Extra screens of rest on the last model so it settles before the page ends.
 const DWELL = 0.6;
@@ -33,6 +36,15 @@ export default function Gallery({ models }: { models: string[] }) {
   // Experience expects these (used only by the old teardown model); inert here.
   const selection = useRef<SelectionState>({ name: null });
   const didDrag = useRef(false);
+
+  // Key-light direction, steered by a three-finger pan (or Shift+drag on
+  // desktop). A ref so the rAF/render loop reads it without re-rendering.
+  const light = useRef<LightState>({ ...LIGHT_DEFAULT });
+  // True while a relight gesture owns the pointer, so the spin/scroll camera
+  // controls stay blocked ("hvile" — at rest) until the gesture ends.
+  const relighting = useRef(false);
+
+  const { dark, toggle } = useTheme();
 
   const progressRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -102,28 +114,106 @@ export default function Gallery({ models }: { models: string[] }) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // Steer the key light: clamp elevation so it never dips under the floor or
+  // straight overhead, and wrap azimuth freely. Shared by the touch + desktop
+  // gestures (k is the per-pixel sensitivity).
+  const relight = (dx: number, dy: number, k = 0.005) => {
+    const l = light.current;
+    l.az -= dx * k;
+    l.el = Math.min(1.45, Math.max(0.1, l.el - dy * k));
+  };
+
+  // Three-finger pan steers the light. Registered natively (non-passive) so the
+  // gesture can preventDefault — that blocks both page scroll and the spin/
+  // scroll "camera" controls while relighting. `relighting` stays latched until
+  // the finger count drops below three, so the camera rests for the whole pan.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    let cx = 0;
+    let cy = 0;
+    const centroid = (touches: TouchList) => {
+      let x = 0;
+      let y = 0;
+      for (let i = 0; i < touches.length; i++) {
+        x += touches[i].clientX;
+        y += touches[i].clientY;
+      }
+      return { x: x / touches.length, y: y / touches.length };
+    };
+    const start = (e: TouchEvent) => {
+      if (e.touches.length < 3) return;
+      relighting.current = true;
+      const c = centroid(e.touches);
+      cx = c.x;
+      cy = c.y;
+    };
+    const move = (e: TouchEvent) => {
+      if (e.touches.length < 3) return;
+      e.preventDefault(); // block scroll + camera spin during the relight
+      relighting.current = true;
+      const c = centroid(e.touches);
+      relight(c.x - cx, c.y - cy);
+      cx = c.x;
+      cy = c.y;
+    };
+    const end = (e: TouchEvent) => {
+      if (e.touches.length < 3) relighting.current = false;
+    };
+    el.addEventListener("touchstart", start, { passive: false });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchmove", move);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", end);
+    };
+  }, []);
+
   // Horizontal drag spins the model; `touch-action: pan-y` keeps vertical
-  // swipes scrolling the page.
+  // swipes scrolling the page. Shift+drag (desktop) steers the light instead.
   const dragging = useRef(false);
   const lastX = useRef(0);
+  const lastY = useRef(0);
   const downX = useRef(0);
   const downY = useRef(0);
   const onPointerDown = (e: React.PointerEvent) => {
-    dragging.current = true;
     lastX.current = e.clientX;
+    lastY.current = e.clientY;
     downX.current = e.clientX;
     downY.current = e.clientY;
     didDrag.current = false;
+    if (e.shiftKey && e.pointerType !== "touch") {
+      relighting.current = true; // desktop relight; suppress spin
+      dragging.current = false;
+      return;
+    }
+    dragging.current = true;
   };
   const onPointerMove = (e: React.PointerEvent) => {
+    // Relight owns the gesture (three-finger touch, handled natively, or
+    // Shift+drag here) — keep the camera at rest.
+    if (relighting.current) {
+      if (e.pointerType !== "touch") {
+        relight(e.clientX - lastX.current, e.clientY - lastY.current);
+        lastX.current = e.clientX;
+        lastY.current = e.clientY;
+      }
+      return;
+    }
     if (!dragging.current) return;
     drag.current.vel = (e.clientX - lastX.current) * 0.006;
     lastX.current = e.clientX;
     if (Math.hypot(e.clientX - downX.current, e.clientY - downY.current) > 6)
       didDrag.current = true;
   };
-  const endDrag = () => {
+  const endDrag = (e?: React.PointerEvent) => {
     dragging.current = false;
+    // The touch relight clears itself when the finger count drops; only release
+    // the desktop (Shift) relight here.
+    if (!e || e.pointerType !== "touch") relighting.current = false;
   };
 
   return (
@@ -132,6 +222,27 @@ export default function Gallery({ models }: { models: string[] }) {
 
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="logo" src="/ikea-logo.webp" alt="IKEA" draggable={false} />
+
+      <button
+        type="button"
+        className="theme"
+        onClick={toggle}
+        aria-label={dark ? "Byt til lyst tema" : "Byt til mørkt tema"}
+        title={dark ? "Lyst tema" : "Mørkt tema"}
+      >
+        {dark ? (
+          // sun
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" />
+          </svg>
+        ) : (
+          // moon
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+          </svg>
+        )}
+      </button>
 
       {count > 0 && (
         <div className="counter" aria-live="polite">
@@ -185,6 +296,8 @@ export default function Gallery({ models }: { models: string[] }) {
               selection={selection}
               didDrag={didDrag}
               onSelect={() => {}}
+              dark={dark}
+              light={light}
             />
           )}
         </Canvas>
@@ -215,6 +328,51 @@ export default function Gallery({ models }: { models: string[] }) {
           height: auto;
           user-select: none;
           pointer-events: none;
+        }
+        /* The IKEA logo is yellow+blue on a light field; in dark mode the page
+           is the Trixig matte-black surface, so drop the logo to a clean white
+           knockout to stay legible without recolouring the mark itself. */
+        .logo {
+          filter: none;
+          transition: filter var(--dur-base) var(--ease-standard);
+        }
+        :global(html[data-theme="dark"]) .logo {
+          filter: brightness(0) invert(1);
+        }
+        .theme {
+          position: fixed;
+          top: calc(env(safe-area-inset-top, 0px) + var(--s-3));
+          right: calc(env(safe-area-inset-right, 0px) + var(--s-3));
+          z-index: 5;
+          display: grid;
+          place-items: center;
+          width: 40px;
+          height: 40px;
+          color: var(--fg1);
+          background: color-mix(in srgb, var(--bg) 70%, transparent);
+          border: 1px solid var(--border);
+          border-radius: var(--r-pill);
+          cursor: pointer;
+          -webkit-backdrop-filter: blur(6px);
+          backdrop-filter: blur(6px);
+          transition:
+            background var(--dur-fast) var(--ease-standard),
+            color var(--dur-fast) var(--ease-standard),
+            border-color var(--dur-fast) var(--ease-standard);
+        }
+        .theme:hover {
+          border-color: var(--border-strong);
+        }
+        .theme:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: 2px;
+        }
+        .theme svg {
+          fill: none;
+          stroke: currentColor;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
         }
         .counter {
           position: fixed;

@@ -1,0 +1,164 @@
+/* =========================================================================
+   IKEA Trixig+ Design System — Colors & Typography
+   Reference: Inter IKEA Systems "Clear & Simple" (2018) + TRIXIG sub-brand DNA
+   ========================================================================= */
+
+/* ---------- Fonts ---------- */
+/* Noto IKEA — supplied brand font (Regular / Italic / Bold / BoldItalic).
+   Verdana is the documented historical IKEA fallback. */
+@font-face {
+  font-family: "Noto IKEA";
+  src: url("fonts/NotoIKEA-Regular.ttf") format("truetype");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Noto IKEA";
+  src: url("fonts/NotoIKEA-Italic.ttf") format("truetype");
+  font-weight: 400; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: "Noto IKEA";
+  src: url("fonts/NotoIKEA-Bold.ttf") format("truetype");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Noto IKEA";
+  src: url("fonts/NotoIKEA-BoldItalic.ttf") format("truetype");
+  font-weight: 700; font-style: italic; font-display: swap;
+}
+
+:root {
+  /* ============== BRAND COLORS — RESERVED ==============
+     IKEA blue + IKEA yellow are RESERVED for the logo and store
+     façades only. Never use them together on other surfaces. */
+  --ikea-blue:   #0058A3;   /* logo-only */
+  --ikea-yellow: #FBD914;   /* logo-only */
+
+  /* ============== TRIXIG SUB-BRAND PALETTE ==============
+     The product itself: matte black ABS + one light-blue accent (the
+     pull-cord and trigger). This is the visual vocabulary the Trixig+
+     redesign inherits. */
+  --trixig-black:        #1A1A1A;   /* matte ABS, primary surface */
+  --trixig-black-soft:   #2B2B2B;   /* shadow / secondary plane */
+  --trixig-black-edge:   #0E0E0E;   /* outline / debossed mark */
+  --trixig-blue:         #A6C8DC;   /* THE accent — pull cord, trigger */
+  --trixig-blue-deep:    #8AB4CC;   /* pressed / hover variant */
+  --trixig-blue-pale:    #D4E4EE;   /* tint, dotted region marker */
+
+  /* ============== NEUTRALS ============== */
+  --paper:        #FFFFFF;   /* primary background */
+  --paper-warm:   #FAF7F2;   /* warm off-white, hjemmenært */
+  --ink:          #111111;   /* primary text */
+  --ink-2:        #444444;   /* secondary text */
+  --ink-3:        #767676;   /* tertiary, captions */
+  --rule:         #E5E5E5;   /* hairline, divider */
+  --rule-strong:  #BDBDBD;
+  --grey-50:      #F5F5F5;
+  --grey-100:     #EEEEEE;
+  --grey-200:     #E0E0E0;
+  --grey-700:     #424242;
+
+  /* ============== SECONDARY PALETTE (surfaces only, never with logo)
+     "Bold colours, never overdone." Pasteller, fades, gradienter forbidde. */
+  --bold-yellow:  #FFDB00;   /* assembly-instruction yellow */
+  --bold-red:     #E52A2A;
+  --bold-magenta: #C8158C;
+  --bold-orange:  #FF7A00;
+  --bold-green:   #2E8540;
+  --bold-cyan:    #5FA8D3;
+  --bold-indigo:  #1F2D5C;
+
+  /* ============== SEMANTIC ============== */
+  --bg:           var(--paper);
+  --bg-warm:      var(--paper-warm);
+  --bg-instr:     var(--bold-yellow);   /* assembly drawing background */
+  --fg1:          var(--ink);
+  --fg2:          var(--ink-2);
+  --fg3:          var(--ink-3);
+  --fg-on-dark:   #FFFFFF;
+  --fg-on-instr:  var(--ikea-blue);     /* blue line drawings on yellow */
+  --accent:       var(--trixig-blue);
+  --accent-deep:  var(--trixig-blue-deep);
+  --surface-product:  var(--trixig-black);
+  --border:       var(--rule);
+  --border-strong: var(--rule-strong);
+
+  /* ============== TYPE ============== */
+  --font-sans: "Noto IKEA", Verdana, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  /* Roles */
+  --type-display: 700 64px/1.05 var(--font-sans);
+  --type-h1:      700 40px/1.1  var(--font-sans);
+  --type-h2:      700 28px/1.2  var(--font-sans);
+  --type-h3:      700 20px/1.3  var(--font-sans);
+  --type-lead:    400 20px/1.4  var(--font-sans);
+  --type-body:    400 16px/1.5  var(--font-sans);
+  --type-body-bold: 700 16px/1.5 var(--font-sans);
+  --type-small:   400 14px/1.45 var(--font-sans);
+  --type-caption: 400 12px/1.4  var(--font-sans);
+  --type-label:   700 12px/1.2  var(--font-sans);   /* uppercase eyebrow */
+  --type-quote:   500 24px/1.35 var(--font-sans);
+
+  /* ============== SPACING (IKEA-flat 4-base scale) ============== */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 96px;
+
+  /* ============== RADII ==============
+     Trixig form: R5–R8 myke radiar. Cards keep the same vocabulary. */
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* ============== ELEVATION ==============
+     IKEA is a flat brand. Use shadows sparingly, only for floating UI. */
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-2: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-3: 0 12px 32px rgba(0,0,0,0.10);
+  --shadow-deboss: inset 0 1px 2px rgba(0,0,0,0.45),
+                   inset 0 -1px 1px rgba(255,255,255,0.04);
+
+  /* ============== MOTION ============== */
+  --ease-standard: cubic-bezier(0.2, 0.0, 0.2, 1);
+  --ease-out:      cubic-bezier(0.0, 0.0, 0.2, 1);
+  --dur-fast:      120ms;
+  --dur-base:      200ms;
+  --dur-slow:      320ms;
+}
+
+/* ---------- Element defaults (semantic tags) ---------- */
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg1);
+  font: var(--type-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1 { font: var(--type-h1); margin: 0 0 var(--s-4); letter-spacing: -0.01em; }
+h2 { font: var(--type-h2); margin: 0 0 var(--s-3); letter-spacing: -0.005em; }
+h3 { font: var(--type-h3); margin: 0 0 var(--s-2); }
+p  { font: var(--type-body); margin: 0 0 var(--s-3); text-wrap: pretty; }
+
+.display { font: var(--type-display); letter-spacing: -0.02em; }
+.lead    { font: var(--type-lead); color: var(--fg2); }
+.eyebrow {
+  font: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg2);
+}
+.caption { font: var(--type-caption); color: var(--fg3); }
+code, .mono { font-family: var(--font-mono); font-size: 0.92em; }
+
+/* "When IKEA appears in running text it's CAPS, same size + font as around." */
+.brand-ikea { text-transform: uppercase; letter-spacing: 0.02em; }
