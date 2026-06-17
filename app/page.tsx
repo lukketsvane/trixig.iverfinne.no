@@ -2,42 +2,21 @@ import fs from "fs";
 import path from "path";
 import Gallery from "@/components/Gallery";
 
-// Read whatever .glb files currently live in public/models, so renaming or
-// dropping in new redesigns just works — no code change needed.
-function listDir(sub: string, ext: string) {
+// The site is just a vertical scroll-through of finished 3D models. Drop a
+// ready `.glb` (with its material baked in) into public/assets and it shows up,
+// in filename order — no code change needed. Prefix files 01_, 02_, … to order.
+function listAssets() {
   try {
     return fs
-      .readdirSync(path.join(process.cwd(), "public", sub))
-      .filter((f) => f.toLowerCase().endsWith(ext))
+      .readdirSync(path.join(process.cwd(), "public", "assets"))
+      .filter((f) => f.toLowerCase().endsWith(".glb"))
       .sort()
-      .map((f) => `/${sub}/${f}`);
+      .map((f) => `/assets/${f}`);
   } catch {
     return [];
   }
 }
 
 export default function Home() {
-  const all = listDir("models", ".glb");
-  const redesigns = all.filter((m) => /trixig_redesign/i.test(m));
-
-  // Section A (before the document): just the original Trixig, split into named
-  // parts. It breaks apart on scroll and each internal (motor, pcb, battery) is
-  // isolated by tapping it — so the old standalone component models are gone.
-  const pre = ["/trixig_parts.glb"];
-  // Section C (after the document): the redesigns.
-  //
-  // Prefer the lightweight v2 series (1.4–1.5 MB each, half the size of the
-  // concept files) to stay within iOS WebGL memory limits. If v2 models are
-  // present they are shown in filename order; otherwise fall back to a curated
-  // selection of the concept series.
-  const v2 = redesigns.filter((m) => /v2_/i.test(m)).sort();
-  const FALLBACK = ["concept_05", "concept_02", "concept_07", "concept_14"];
-  const post =
-    v2.length >= 2
-      ? v2
-      : FALLBACK.map((k) => redesigns.find((m) => m.includes(k))).filter(
-          (m): m is string => Boolean(m),
-        );
-
-  return <Gallery pre={pre} post={post} pages={listDir("pages", ".jpg")} />;
+  return <Gallery models={listAssets()} />;
 }

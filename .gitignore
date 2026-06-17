@@ -18,3 +18,8 @@
 next-env.d.ts
 .DS_Store
 *.log
+
+# Blender working files (large, local)
+*.blend
+*.blend1
+*.blend2
