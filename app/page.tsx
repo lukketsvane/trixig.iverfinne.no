@@ -25,7 +25,23 @@ export default function Home() {
   // isolated by tapping it — so the old standalone component models are gone.
   const pre = ["/trixig_parts.glb"];
   // Section C (after the document): the redesigns.
-  const post = redesigns;
+  //
+  // INTERIM: show only three concepts while we sort out mobile load perf — all
+  // ~1.1M-vert concepts mounted at once exhausts the WebGL context on iPhone.
+  // Edit this list to swap which three appear (matched against the filename).
+  // Curated five (picked by eye for quality + variety of form): a pistol-grip
+  // power tool, a docked screwdriver, a sleek looped screwdriver, a compact
+  // drill, and a carabiner-loop tool.
+  const SHOW = [
+    "concept_05",
+    "concept_02",
+    "concept_07",
+    "concept_13",
+    "concept_14",
+  ];
+  const post = SHOW.map((k) => redesigns.find((m) => m.includes(k))).filter(
+    (m): m is string => Boolean(m),
+  );
 
   return <Gallery pre={pre} post={post} pages={listDir("pages", ".jpg")} />;
 }
