@@ -8,7 +8,6 @@ import Experience, {
   SelectionState,
   MODEL_LEN,
   partLabel,
-  sectionIsDark,
 } from "@/components/Experience";
 import ModelTitle, { titleFor, numberFor } from "@/components/ModelTitle";
 
@@ -332,13 +331,12 @@ export default function Gallery({
           title={titleFor(models[active])}
           number={numberFor(models[active])}
           visible={inHero && !picked}
-          dark={sectionIsDark(models[active] ?? "")}
         />
       )}
 
       {/* Isolated-part caption (replaces the model title while a part is held) */}
       <div
-        className={`partlabel ${picked ? "" : "hidden"} ${sectionIsDark(models[active] ?? "") ? "on-dark" : ""}`}
+        className={`partlabel ${picked ? "" : "hidden"}`}
         aria-live="polite"
       >
         <p className="pl-eyebrow">Del</p>
@@ -448,7 +446,7 @@ export default function Gallery({
           width: 100%;
           height: 3px;
           z-index: 5;
-          background: var(--ikea-yellow);
+          background: var(--trixig-blue);
           transform: scaleX(0);
           transform-origin: left center;
           will-change: transform;
@@ -499,14 +497,6 @@ export default function Gallery({
           font: var(--type-label);
           color: var(--fg3);
           margin: var(--s-2) 0 0;
-        }
-        /* White part caption on the dark IKEA-blue teardown section. */
-        .partlabel.on-dark .pl-eyebrow,
-        .partlabel.on-dark .pl-hint {
-          color: rgba(255, 255, 255, 0.75);
-        }
-        .partlabel.on-dark .pl-name {
-          color: #ffffff;
         }
         .stage {
           position: fixed;
