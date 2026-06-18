@@ -154,7 +154,11 @@ const SEL_DIM = 0.08;
 // to tap points of interest) — then eases a turn only as it leaves the frame
 // (and as it arrives), so the swap still reads as motion. `pos` is the smoothed
 // model index, so a model's centre is at pos === its index.
-const SPIN_PHASE = -0.7; // resting 3/4 angle, every model faces the camera here
+// The resting yaw itself is computed per model from geometry (see useNormalized:
+// the dominant horizontal axis is laid across the screen, so each product rests
+// broadside — a readable side profile — instead of end-on). REST_OFFSET nudges
+// that hero angle a touch off pure broadside if a slight 3/4 is wanted.
+const REST_OFFSET = 0; // radians added to every model's computed broadside yaw
 const SECTION_DWELL = 0.32; // ± model-index from centre held perfectly still
 const SECTION_SWING = 1.15; // radians turned by the time the model is frame-edge
 function sectionSpin(d: number) {
@@ -175,22 +179,27 @@ function poseFor(url: string): [number, number, number] {
   return [0, 0, 0];
 }
 
-// Subtle studio backdrop tones, around --grey-100 — matches the document field
-// so the hero hands off seamlessly, with a faint warm/cool drift that shifts
-// roughly every 3 models.
-const BG_LIGHT = ["#eeeeee", "#f1ece5", "#e7edf0", "#edefe9"].map(
-  (h) => new THREE.Color(h),
-);
-const _bg = new THREE.Color();
-function bgAt(t: number) {
-  const pal = BG_LIGHT;
-  const seg = t / 3;
-  const i = Math.floor(seg);
-  let f = seg - i;
-  f = f * f * (3 - 2 * f); // smoothstep
-  return _bg
-    .copy(pal[((i % pal.length) + pal.length) % pal.length])
-    .lerp(pal[(((i + 1) % pal.length) + pal.length) % pal.length], f);
+// Studio backdrop: a soft vertical gradient (light, airy top → cooler blue-grey
+// toward the floor) so the scene reads like a seamless photo sweep rather than a
+// flat fill — matching the reference product renders. Built once as a tiny
+// canvas texture and reused as scene.background.
+function makeBackdrop() {
+  if (typeof document === "undefined") return new THREE.Texture();
+  const c = document.createElement("canvas");
+  c.width = 8;
+  c.height = 256;
+  const ctx = c.getContext("2d");
+  if (ctx) {
+    const g = ctx.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0, "#eef2f6"); // soft light, high
+    g.addColorStop(0.58, "#e3eaf0");
+    g.addColorStop(1, "#d2dde6"); // cooler blue-grey toward the floor
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 8, 256);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 // --- Light direction (three-finger pan) ---
@@ -404,7 +413,45 @@ function useNormalized(url: string, framing: Framing) {
       ? (root.getObjectByName(JOINT_PART) ?? null)
       : null;
 
-    return { object: wrapper, bottomY, parts, meshToPart, joint };
+    // Resting yaw: lay the model's dominant horizontal (XZ) axis across the
+    // screen so it rests broadside — a readable side profile — instead of
+    // end-on. Closed-form principal-axis angle of the XZ vertex cloud (2x2
+    // covariance), sampled for speed. Data-driven, so any dropped model
+    // auto-orients; ±π ambiguity is fine (both are clean side profiles).
+    wrapper.updateWorldMatrix(true, true);
+    let cnt = 0;
+    let mx = 0;
+    let mz = 0;
+    let sxx = 0;
+    let szz = 0;
+    let sxz = 0;
+    const vtmp = new THREE.Vector3();
+    wrapper.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      const pos = mesh.isMesh ? mesh.geometry?.attributes?.position : null;
+      if (!pos) return;
+      const step = Math.max(1, Math.floor(pos.count / 3000));
+      for (let i = 0; i < pos.count; i += step) {
+        vtmp
+          .fromBufferAttribute(pos as THREE.BufferAttribute, i)
+          .applyMatrix4(mesh.matrixWorld);
+        cnt++;
+        mx += vtmp.x;
+        mz += vtmp.z;
+        sxx += vtmp.x * vtmp.x;
+        szz += vtmp.z * vtmp.z;
+        sxz += vtmp.x * vtmp.z;
+      }
+    });
+    let restYaw = 0;
+    if (cnt > 2) {
+      const cxx = sxx / cnt - (mx / cnt) ** 2;
+      const czz = szz / cnt - (mz / cnt) ** 2;
+      const cxz = sxz / cnt - (mx / cnt) * (mz / cnt);
+      restYaw = 0.5 * Math.atan2(2 * cxz, cxx - czz) + REST_OFFSET;
+    }
+
+    return { object: wrapper, bottomY, parts, meshToPart, joint, restYaw };
   }, [scene, url, framing.robust, framing.keep, framing.zoom]);
 }
 
@@ -430,7 +477,7 @@ function Model({
   onSelect: (name: string | null) => void;
 }) {
   const group = useRef<THREE.Group>(null);
-  const { object, bottomY, parts, meshToPart, joint } = useNormalized(
+  const { object, bottomY, parts, meshToPart, joint, restYaw } = useNormalized(
     url,
     framingFor(url),
   );
@@ -490,9 +537,10 @@ function Model({
     if (joint) joint.rotation[JOINT_AXIS] = state.clock.elapsedTime * JOINT_SPEED;
 
     const [rx, ry, rz] = poseFor(url);
-    // Per-section dwell: front-facing and still through the centre dead-zone,
-    // turning only as the model enters/leaves frame. Horizontal drag adds on top.
-    const scrollSpin = SPIN_PHASE + sectionSpin(offset);
+    // Per-section dwell: rests broadside (restYaw, computed per model) and still
+    // through the centre dead-zone, turning only as the model enters/leaves
+    // frame. poseFor.ry and horizontal drag add on top.
+    const scrollSpin = restYaw + sectionSpin(offset);
     g.rotation.set(rx, drag.current.angle + ry + scrollSpin, rz);
     g.position.y = liftFor(url); // per-model vertical nudge (shadow stays put)
     // slight scale pop so the swap reads as motion, not a blink
@@ -593,9 +641,13 @@ export default function Experience({
   const keyLight = useRef<THREE.DirectionalLight>(null);
   const scene = useThree((s) => s.scene);
 
+  // Soft studio gradient backdrop (built once), so the scene reads as a seamless
+  // photo sweep rather than a flat fill.
+  const backdrop = useMemo(() => makeBackdrop(), []);
   useEffect(() => {
-    scene.background = bgAt(scroll.current.pos).clone();
-  }, [scene, scroll]);
+    scene.background = backdrop;
+    return () => backdrop.dispose();
+  }, [scene, backdrop]);
 
   // Preload only the next model (not the previous) so the upcoming transition is
   // smooth without filling the cache with all models simultaneously. On mobile
@@ -608,10 +660,6 @@ export default function Experience({
   // only read scroll.current.pos (already smoothed) to drive the 3D scene.
   useFrame(() => {
     const pos = scroll.current.pos;
-
-    if (scene.background instanceof THREE.Color) {
-      scene.background.copy(bgAt(pos));
-    }
 
     // Steer the key light from the (three-finger-pan-driven) azimuth/elevation.
     if (keyLight.current) {
@@ -640,9 +688,17 @@ export default function Experience({
   return (
     <>
       <Rig />
-      <Environment preset="studio" environmentIntensity={0.9} />
-      <directionalLight ref={keyLight} position={[3, 5, 4]} intensity={1.1} />
-      <ambientLight intensity={0.25} />
+      {/* Soft, even studio fill from the environment, a steerable key for form,
+          a gentle cool fill to open the shadows, and a low ambient floor. */}
+      <Environment preset="studio" environmentIntensity={1.05} />
+      <directionalLight
+        ref={keyLight}
+        position={[3, 5, 4]}
+        intensity={1.45}
+        color="#fffaf2"
+      />
+      <directionalLight position={[-5, 2, -3]} intensity={0.45} color="#dce6f0" />
+      <ambientLight intensity={0.32} />
 
       {models.map((url, i) =>
         Math.abs(i - active) <= MOUNT_RADIUS ? (
@@ -663,12 +719,12 @@ export default function Experience({
 
       <group ref={shadow} position={[0, -1.05, 0]}>
         <ContactShadows
-          opacity={0.22}
-          blur={2}
-          far={3}
-          scale={5}
+          opacity={0.32}
+          blur={2.8}
+          far={3.2}
+          scale={7}
           resolution={256}
-          color="#000000"
+          color="#33414d"
         />
       </group>
     </>
