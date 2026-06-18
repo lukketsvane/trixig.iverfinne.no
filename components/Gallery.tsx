@@ -10,7 +10,6 @@ import Experience, {
   LIGHT_DEFAULT,
   MODEL_LEN,
 } from "@/components/Experience";
-import { useTheme } from "@/components/useTheme";
 
 // Extra screens of rest on the last model so it settles before the page ends.
 const DWELL = 0.6;
@@ -43,8 +42,6 @@ export default function Gallery({ models }: { models: string[] }) {
   // True while a relight gesture owns the pointer, so the spin/scroll camera
   // controls stay blocked ("hvile" — at rest) until the gesture ends.
   const relighting = useRef(false);
-
-  const { dark, toggle } = useTheme();
 
   const progressRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -223,27 +220,6 @@ export default function Gallery({ models }: { models: string[] }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="logo" src="/ikea-logo.webp" alt="IKEA" draggable={false} />
 
-      <button
-        type="button"
-        className="theme"
-        onClick={toggle}
-        aria-label={dark ? "Byt til lyst tema" : "Byt til mørkt tema"}
-        title={dark ? "Lyst tema" : "Mørkt tema"}
-      >
-        {dark ? (
-          // sun
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" />
-          </svg>
-        ) : (
-          // moon
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-          </svg>
-        )}
-      </button>
-
       {count > 0 && (
         <div className="counter" aria-live="polite">
           {String(activeIdx + 1).padStart(2, "0")}
@@ -296,7 +272,6 @@ export default function Gallery({ models }: { models: string[] }) {
               selection={selection}
               didDrag={didDrag}
               onSelect={() => {}}
-              dark={dark}
               light={light}
             />
           )}
@@ -328,51 +303,6 @@ export default function Gallery({ models }: { models: string[] }) {
           height: auto;
           user-select: none;
           pointer-events: none;
-        }
-        /* The IKEA logo is yellow+blue on a light field; in dark mode the page
-           is the Trixig matte-black surface, so drop the logo to a clean white
-           knockout to stay legible without recolouring the mark itself. */
-        .logo {
-          filter: none;
-          transition: filter var(--dur-base) var(--ease-standard);
-        }
-        :global(html[data-theme="dark"]) .logo {
-          filter: brightness(0) invert(1);
-        }
-        .theme {
-          position: fixed;
-          top: calc(env(safe-area-inset-top, 0px) + var(--s-3));
-          right: calc(env(safe-area-inset-right, 0px) + var(--s-3));
-          z-index: 5;
-          display: grid;
-          place-items: center;
-          width: 40px;
-          height: 40px;
-          color: var(--fg1);
-          background: color-mix(in srgb, var(--bg) 70%, transparent);
-          border: 1px solid var(--border);
-          border-radius: var(--r-pill);
-          cursor: pointer;
-          -webkit-backdrop-filter: blur(6px);
-          backdrop-filter: blur(6px);
-          transition:
-            background var(--dur-fast) var(--ease-standard),
-            color var(--dur-fast) var(--ease-standard),
-            border-color var(--dur-fast) var(--ease-standard);
-        }
-        .theme:hover {
-          border-color: var(--border-strong);
-        }
-        .theme:focus-visible {
-          outline: 2px solid var(--accent);
-          outline-offset: 2px;
-        }
-        .theme svg {
-          fill: none;
-          stroke: currentColor;
-          stroke-width: 2;
-          stroke-linecap: round;
-          stroke-linejoin: round;
         }
         .counter {
           position: fixed;
