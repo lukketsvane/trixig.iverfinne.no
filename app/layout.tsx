@@ -2,9 +2,31 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://trixig.iverfinne.no"),
   title: "trixig",
   description: "trixig redesigns",
   manifest: "/site.webmanifest",
+  openGraph: {
+    title: "trixig",
+    description: "trixig redesigns",
+    url: "https://trixig.iverfinne.no",
+    siteName: "trixig",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1731,
+        height: 909,
+        alt: "trixig.iverfinne.no",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "trixig",
+    description: "trixig redesigns",
+    images: ["/og-image.png"],
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
