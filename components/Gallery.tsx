@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import Experience, {
   DragState,
@@ -9,10 +9,20 @@ import Experience, {
   LightState,
   LIGHT_DEFAULT,
   MODEL_LEN,
+  partLabel,
 } from "@/components/Experience";
 
 // Extra screens of rest on the last model so it settles before the page ends.
 const DWELL = 0.6;
+
+// The original Trixig (trixig_parts) opens the gallery with an x-ray reveal:
+// while it holds in frame (pos 0), `breakdown` ramps 0→1 over BREAKDOWN_SCREENS
+// (the outer shells fade to translucent so the motor/board read through them),
+// then it stays x-rayed for EXPLODE_HOLD more screens — a calm window to tap
+// the parts — before the scroll advances to the next model.
+const BREAKDOWN_SCREENS = 1.8;
+const EXPLODE_HOLD = 1.4;
+const isParts = (url: string | undefined) => /trixig_parts/i.test(url ?? "");
 
 // Detect mobile once at module load so Canvas quality is tuned before first render.
 const isMobile =
@@ -32,9 +42,22 @@ export default function Gallery({ models }: { models: string[] }) {
     targetBreakdown: 0,
     breakdown: 0,
   });
-  // Experience expects these (used only by the old teardown model); inert here.
+  // Tap-to-isolate selection for the original's exploded parts. The ref drives
+  // the 3D loop; `picked` mirrors it to React only for the on-screen label.
   const selection = useRef<SelectionState>({ name: null });
   const didDrag = useRef(false);
+  const selectAtSy = useRef(0);
+  const [picked, setPicked] = useState<string | null>(null);
+  const selectPart = (name: string | null) => {
+    selection.current.name = name;
+    if (name) selectAtSy.current = window.scrollY;
+    setPicked(name);
+  };
+
+  // Does the gallery open with the exploded original? (always first if present)
+  const hasParts = useMemo(() => isParts(models[0]), [models]);
+  // Scroll devoted to the x-ray reveal + hold before the index starts moving.
+  const preScreens = hasParts ? BREAKDOWN_SCREENS + EXPLODE_HOLD : 0;
 
   // Key-light direction, steered by a three-finger pan (or Shift+drag on
   // desktop). A ref so the rAF/render loop reads it without re-rendering.
@@ -48,17 +71,49 @@ export default function Gallery({ models }: { models: string[] }) {
   const [active, setActive] = useState(0);
   const activeIdx = count ? Math.min(Math.max(active, 0), count - 1) : 0;
 
-  // One MODEL_LEN of scroll per gap between models, plus a dwell on the last.
-  const screens = Math.max(0, count - 1) * MODEL_LEN + DWELL;
+  // The pre-roll x-ray screens, then one MODEL_LEN per gap, plus a final dwell.
+  const screens = preScreens + Math.max(0, count - 1) * MODEL_LEN + DWELL;
 
-  // Map scroll position to a (smoothed) model index.
+  // Map scroll position to a (smoothed) model index + teardown progress.
   useEffect(() => {
     const onScroll = () => {
       const vh = window.innerHeight;
       const sY = window.scrollY;
-      const pos =
-        count > 1 ? Math.min(count - 1, Math.max(0, sY / vh / MODEL_LEN)) : 0;
+
+      let pos: number;
+      let bd = 0; // teardown progress (only meaningful while the original shows)
+      if (hasParts) {
+        const breakScroll = BREAKDOWN_SCREENS * vh;
+        const preScroll = preScreens * vh;
+        if (sY < breakScroll) {
+          // Hold on the original (pos 0) while the shells x-ray open.
+          pos = 0;
+          bd = sY / breakScroll;
+        } else if (sY < preScroll) {
+          // Stay fully x-rayed through the hold so parts can be tapped.
+          pos = 0;
+          bd = 1;
+        } else {
+          pos =
+            count > 1
+              ? Math.min(count - 1, (sY - preScroll) / vh / MODEL_LEN)
+              : 0;
+          bd = 1;
+        }
+      } else {
+        pos =
+          count > 1 ? Math.min(count - 1, Math.max(0, sY / vh / MODEL_LEN)) : 0;
+      }
+
       scroll.current.target = pos;
+      scroll.current.targetBreakdown = bd;
+      // Collapsing the x-ray or scrolling away releases any isolated part.
+      if (
+        selection.current.name &&
+        (bd < 0.5 || Math.abs(sY - selectAtSy.current) > 60)
+      )
+        selectPart(null);
+
       const idx = Math.round(pos);
       setActive((p) => (p === idx ? p : idx));
       const max = document.documentElement.scrollHeight - vh;
@@ -74,7 +129,7 @@ export default function Gallery({ models }: { models: string[] }) {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, [count]);
+  }, [count, hasParts, preScreens]);
 
   // iOS Safari's bottom toolbar overlaps fixed content; measure its inset.
   useEffect(() => {
@@ -103,6 +158,7 @@ export default function Gallery({ models }: { models: string[] }) {
     const loop = () => {
       const s = scroll.current;
       s.pos += (s.target - s.pos) * 0.1;
+      s.breakdown += (s.targetBreakdown - s.breakdown) * 0.1;
       drag.current.angle += drag.current.vel;
       drag.current.vel *= 0.9;
       raf = requestAnimationFrame(loop);
@@ -228,6 +284,12 @@ export default function Gallery({ models }: { models: string[] }) {
         </div>
       )}
 
+      {picked && (
+        <div className="partlabel" aria-live="polite">
+          {partLabel(picked)}
+        </div>
+      )}
+
       {count === 0 && (
         <div className="empty">
           <p>
@@ -271,7 +333,7 @@ export default function Gallery({ models }: { models: string[] }) {
               scroll={scroll}
               selection={selection}
               didDrag={didDrag}
-              onSelect={() => {}}
+              onSelect={selectPart}
               light={light}
             />
           )}
@@ -303,6 +365,25 @@ export default function Gallery({ models }: { models: string[] }) {
           height: auto;
           user-select: none;
           pointer-events: none;
+        }
+        .partlabel {
+          position: fixed;
+          bottom: calc(
+            env(safe-area-inset-bottom, 0px) + var(--vv-bottom, 0px) + var(--s-7)
+          );
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 4;
+          padding: var(--s-2) var(--s-4);
+          font: var(--type-body-bold);
+          color: var(--fg1);
+          background: color-mix(in srgb, var(--bg) 80%, transparent);
+          border: 1px solid var(--border);
+          border-radius: var(--r-pill);
+          -webkit-backdrop-filter: blur(6px);
+          backdrop-filter: blur(6px);
+          pointer-events: none;
+          white-space: nowrap;
         }
         .counter {
           position: fixed;
