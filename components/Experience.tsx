@@ -148,15 +148,25 @@ const SHELL_XRAY = 0.14;
 // Opacity of the non-selected parts while one part is highlighted.
 const SEL_DIM = 0.08;
 
-// Radians a model spins per unit of scroll (i.e. per model scrolled through).
-// Higher = more turntable motion while scrolling.
-const SCROLL_SPIN = 2.0;
-// Global starting angle so the first model opens at a flattering 3/4 view;
-// applied to every model, so the continuous spin is unaffected.
-const SPIN_PHASE = -0.7;
+// Per-section turntable. Each model rests at a flattering front 3/4 (SPIN_PHASE)
+// across a wide dead-zone around its centre — so it "stands still, facing the
+// camera" for most of its section (a calm window to read the product, and later
+// to tap points of interest) — then eases a turn only as it leaves the frame
+// (and as it arrives), so the swap still reads as motion. `pos` is the smoothed
+// model index, so a model's centre is at pos === its index.
+const SPIN_PHASE = -0.7; // resting 3/4 angle, every model faces the camera here
+const SECTION_DWELL = 0.32; // ± model-index from centre held perfectly still
+const SECTION_SWING = 1.15; // radians turned by the time the model is frame-edge
+function sectionSpin(d: number) {
+  const a = Math.abs(d);
+  if (a <= SECTION_DWELL) return 0; // dead-zone: stand still, front-facing
+  const t = (a - SECTION_DWELL) / (0.5 - SECTION_DWELL); // 0..1 across the leave band
+  const e = t * t * (3 - 2 * t); // smoothstep ease in/out of the turn
+  return Math.sign(d) * e * SECTION_SWING;
+}
 
-// A flattering resting tilt per model (radians, [x, y, z]). Y is left at 0 so
-// the scroll-driven spin stays continuous from one model to the next.
+// A flattering resting tilt per model (radians, [x, y, z]). Y offsets this
+// model's front-facing rest angle only; the scroll turn (sectionSpin) adds on.
 function poseFor(url: string): [number, number, number] {
   if (/gearbox_motor/i.test(url)) return [-0.32, 0, 0.06];
   // #09 (concept_04): turn it to a clearer 3/4 so you can read the tool, with a
@@ -467,7 +477,8 @@ function Model({
     // crosses over in a narrow band near the midpoint. Neighbours never overlap
     // (no ghosting), and any resting scroll position shows a clean model.
     const pos = scroll.current.pos;
-    const d = Math.abs(pos - index);
+    const offset = pos - index; // signed distance from this model's centre
+    const d = Math.abs(offset);
     const t = THREE.MathUtils.clamp((d - 0.35) / 0.15, 0, 1);
     const opacity = 1 - t * t * (3 - 2 * t);
 
@@ -479,10 +490,9 @@ function Model({
     if (joint) joint.rotation[JOINT_AXIS] = state.clock.elapsedTime * JOINT_SPEED;
 
     const [rx, ry, rz] = poseFor(url);
-    // Global (not per-index) scroll spin: every model reads the same angle, so
-    // each one picks up exactly where the previous left off — one continuous
-    // turntable across the whole scroll. Horizontal drag adds on top.
-    const scrollSpin = SPIN_PHASE + pos * SCROLL_SPIN;
+    // Per-section dwell: front-facing and still through the centre dead-zone,
+    // turning only as the model enters/leaves frame. Horizontal drag adds on top.
+    const scrollSpin = SPIN_PHASE + sectionSpin(offset);
     g.rotation.set(rx, drag.current.angle + ry + scrollSpin, rz);
     g.position.y = liftFor(url); // per-model vertical nudge (shadow stays put)
     // slight scale pop so the swap reads as motion, not a blink
